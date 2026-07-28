@@ -1,0 +1,23 @@
+# Android Studio and Gradle
+.gradle/
+.idea/
+**/build/
+local.properties
+*.iml
+app/libs/META-INF/
+
+# Local release signing
+keystore.properties
+signing/
+*.jks
+*.keystore
+
+# Generated release artifacts
+dist/
+*.apk
+*.apks
+*.aab
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TikTok Region Hook</string>
+    <string name="title">TikTok 地区</string>
+    <string name="enable_override">启用地区覆盖</string>
+    <string name="skip_startup_login">跳过启动登录引导</string>
+    <string name="region_presets">地区预设</string>
+    <string name="profile_row">%1$s  %2$s\n%3$s  ·  %4$s</string>
+    <string name="apply_and_open">应用并重启 TikTok</string>
+    <string name="clear_and_restart">清除地区并重启 TikTok</string>
+    <string name="active_profile">当前配置 · %1$s %2$s</string>
+    <string name="active_follow_system">当前配置 · 跟随系统</string>
+    <string name="tiktok_not_installed">未安装 TikTok</string>
+    <string name="save_failed">配置保存失败</string>
+    <string name="force_stop_failed">强制重启失败，请授予 Root 权限</string>
+</resources>
