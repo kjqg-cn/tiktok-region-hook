@@ -6,6 +6,13 @@ An LSPosed module that provides a consistent set of region, SIM, carrier, and st
 
 Current version: `1.4.1`
 
+## Interface Preview
+
+| Region override enabled | Follow system (override disabled) |
+| :---: | :---: |
+| <img src="docs/images/region-override-enabled.png" alt="Region override enabled" width="320"> | <img src="docs/images/region-override-disabled.png" alt="Follow system with region override disabled" width="320"> |
+| TikTok uses the region, SIM, and carrier values supplied by the selected profile. | No region values are overridden; TikTok uses the device's real SIM and system signals. |
+
 ## Features
 
 - Region profiles for the United States, United Kingdom, Japan, South Korea, Singapore, Germany, France, Canada, and Australia.

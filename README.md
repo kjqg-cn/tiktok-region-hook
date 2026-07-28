@@ -6,6 +6,13 @@
 
 当前版本：`1.4.1`
 
+## 界面预览
+
+| 地区覆盖已启用 | 跟随系统（地区覆盖已关闭） |
+| :---: | :---: |
+| <img src="docs/images/region-override-enabled.png" alt="地区覆盖已启用" width="320"> | <img src="docs/images/region-override-disabled.png" alt="跟随系统，地区覆盖已关闭" width="320"> |
+| 选择预设地区后，TikTok 使用模块提供的地区、SIM 和运营商信息。 | 不覆盖地区信息，TikTok 使用设备真实的 SIM 和系统信息。 |
+
 ## 功能
 
 - 支持美国、英国、日本、韩国、新加坡、德国、法国、加拿大和澳大利亚预设。
