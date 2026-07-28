@@ -32,7 +32,7 @@
 ## 安装
 
 1. 确认设备已具备可用的 Root 和 LSPosed/Vector 环境。
-2. 从 Releases 下载并安装 TikTok Region Hook APK。
+2. 从 [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases) 下载并安装 TikTok Region Hook APK。
 3. 在 LSPosed 中启用模块，确认已安装的 TikTok 显示为“推荐应用”且已勾选。
 4. 打开 TikTok Region Hook，选择地区后点击“应用并重启 TikTok”。
 5. KernelSU/Magisk 首次询问 Root 权限时选择长期允许，否则应用无法强制停止 TikTok。
@@ -94,7 +94,7 @@ Linux/macOS：
 .\gradlew.bat clean lintRelease assembleRelease
 ```
 
-维护现有发行签名时，必须继续使用相同证书，否则无法覆盖安装旧版本。发布 APK 应上传到 Releases，不建议提交到 Git 仓库。
+维护现有发行签名时，必须继续使用相同证书，否则无法覆盖安装旧版本。发布 APK 应上传到 [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases)，不建议提交到 Git 仓库。
 
 ## 项目结构
 

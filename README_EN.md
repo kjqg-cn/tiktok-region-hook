@@ -32,7 +32,7 @@ The module hooks stable Android telephony APIs and version-specific TikTok regio
 ## Installation
 
 1. Prepare a working Root and LSPosed/Vector environment.
-2. Download and install the TikTok Region Hook APK from Releases.
+2. Download and install the TikTok Region Hook APK from [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases).
 3. Enable the module in LSPosed and confirm that the installed TikTok package is checked and marked as recommended.
 4. Open TikTok Region Hook, select a region, and tap "Apply and restart TikTok."
 5. When KernelSU or Magisk requests Root access for the first time, grant persistent access so the module can force-stop TikTok.
@@ -94,7 +94,7 @@ A release build requires a local `keystore.properties`. Copy `keystore.propertie
 .\gradlew.bat clean lintRelease assembleRelease
 ```
 
-Existing releases must continue using the same signing certificate or Android will reject in-place updates. Publish release APKs through Releases instead of committing them to Git.
+Existing releases must continue using the same signing certificate or Android will reject in-place updates. Publish release APKs through [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases) instead of committing them to Git.
 
 ## Project Layout
 
