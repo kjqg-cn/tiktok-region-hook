@@ -4,18 +4,19 @@
 
 An LSPosed module that provides a consistent set of region, SIM, carrier, and store-region signals inside supported TikTok processes.
 
-Current version: `1.4.1`
+Current version: `1.4.2`
 
 ## Interface Preview
 
 | Region override enabled | Follow system (override disabled) |
 | :---: | :---: |
 | <img src="docs/images/region-override-enabled.png" alt="Region override enabled" width="320"> | <img src="docs/images/region-override-disabled.png" alt="Follow system with region override disabled" width="320"> |
-| TikTok uses the region, SIM, and carrier values supplied by the selected profile. | No region values are overridden; TikTok uses the device's real SIM and system signals. |
+| TikTok uses the region, SIM, carrier, and time-zone values supplied by the selected profile and city. | No region values are overridden; TikTok uses the device's real SIM and system signals. |
 
 ## Features
 
 - Region profiles for the United States, United Kingdom, Japan, South Korea, Singapore, Germany, France, Canada, and Australia.
+- Common city/time-zone choices within each country profile, such as Los Angeles, New York, Chicago, and Denver for the United States.
 - Consistent country ISO, MCC/MNC, carrier, SIM, system-region, and store-region overrides.
 - Supports both `com.zhiliaoapp.musically` and `com.ss.android.ugc.trill`.
 - Marks the installed TikTok package as a recommended LSPosed scope application.
@@ -28,7 +29,7 @@ Current version: `1.4.1`
 
 | Item | Status |
 | --- | --- |
-| Tested TikTok version | Google Play 46.1.3 |
+| Tested region-override versions | Google Play 46.1.3, 46.5.3 |
 | Tested package names | `com.zhiliaoapp.musically`, `com.ss.android.ugc.trill` |
 | Tested Android versions | Android 12, Android 16 |
 | Minimum Android version | Android 8.1 (API 27) |
@@ -44,13 +45,13 @@ The module hooks stable Android telephony APIs and version-specific TikTok regio
 4. Open TikTok Region Hook, select a region, and tap "Apply and restart TikTok."
 5. When KernelSU or Magisk requests Root access for the first time, grant persistent access so the module can force-stop TikTok.
 
-After updating the module, re-optimize it in Vector/LSPosed when that option is available, then force-stop and reopen TikTok. An in-place update normally preserves Root authorization; uninstalling and reinstalling does not.
+After updating the module, confirm that TikTok remains enabled in the module scope, then force-stop and reopen TikTok to load the new hooks. Re-optimizing is normally unnecessary; it is an ART dex/profile optimization step that is useful only when a restarted target process still appears to be using stale module code. An in-place update normally preserves Root authorization; uninstalling and reinstalling does not.
 
 ## Usage
 
 ### Switch regions
 
-Select a profile, keep region overrides enabled, and tap "Apply and restart TikTok." TikTok must be fully restarted before the new signals can take effect consistently.
+Select a profile and its city/time zone, keep region overrides enabled, and tap "Apply and restart TikTok." TikTok must be fully restarted before the new signals can take effect consistently.
 
 ### Restore the real SIM region
 
@@ -73,6 +74,7 @@ This option only closes a dismissible login prompt shortly after a new TikTok pr
 - The module does not replace a working international network route. TikTok may still evaluate IP address, account state, and other server-side risk signals.
 - TikTok updates may rename internal obfuscated classes and break version-specific hooks.
 - A working feed does not prove that login, user profiles, and every regional endpoint are compatible; perform a complete regression test after updating TikTok.
+- On Google Play 46.5.3, the current test account and network still showed likes and follows briefly succeeding before their state disappeared. Region, SIM, and time-zone signals were verified, but the module cannot guarantee that TikTok's servers will accept account interaction writes.
 - Root and LSPosed are required. This solution does not support non-rooted devices.
 
 ## Build From Source

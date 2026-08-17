@@ -3,6 +3,7 @@ package com.local.tiktokregion;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Application;
+import android.app.AndroidAppHelper;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -11,15 +12,17 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Process;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -49,31 +52,54 @@ public final class RegionHook implements IXposedHookLoadPackage {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
-                        if (!INITIALIZED.compareAndSet(false, true)) {
-                            return;
-                        }
-
-                        Context context = (Context) param.args[0];
-                        processAttachedAt = SystemClock.elapsedRealtime();
-                        registerConfigReceiver(context);
-                        HookConfig config = loadConfig(context);
-                        if (config == null || !config.enabled) {
-                            log("disabled for " + loadPackageParam.processName);
-                            return;
-                        }
-
-                        RegionProfile profile = config.profile;
-                        int frameworkHooks = installFrameworkHooks(profile);
-                        int appHooks = installTikTokHooks(
-                                loadPackageParam.classLoader,
-                                profile,
-                                config.skipStartupLogin);
-                        log("active for " + loadPackageParam.processName
-                                + ", profile=" + profile.id
-                                + ", frameworkHooks=" + frameworkHooks
-                                + ", appHooks=" + appHooks);
+                        initialize(loadPackageParam, (Context) param.args[0]);
                     }
                 });
+        XposedHelpers.findAndHookMethod(
+                Application.class,
+                "onCreate",
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        initialize(loadPackageParam, (Application) param.thisObject);
+                    }
+                });
+
+        Application application = AndroidAppHelper.currentApplication();
+        if (application != null) {
+            initialize(loadPackageParam, application);
+        }
+    }
+
+    private static void initialize(
+            XC_LoadPackage.LoadPackageParam loadPackageParam,
+            Context context) {
+        if (!INITIALIZED.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            processAttachedAt = SystemClock.elapsedRealtime();
+            registerConfigReceiver(context);
+            HookConfig config = loadConfig(context);
+            if (config == null || !config.enabled) {
+                log("disabled for " + loadPackageParam.processName);
+                return;
+            }
+
+            RegionProfile profile = config.profile;
+            int frameworkHooks = installFrameworkHooks(profile);
+            int appHooks = installTikTokHooks(
+                    loadPackageParam.classLoader,
+                    profile,
+                    config.skipStartupLogin);
+            log("active for " + loadPackageParam.processName
+                    + ", profile=" + profile.id
+                    + ", frameworkHooks=" + frameworkHooks
+                        + ", appHooks=" + appHooks);
+        } catch (Throwable throwable) {
+            XposedBridge.log(LOG_PREFIX + "initialize failed: " + throwable);
+        }
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -87,24 +113,51 @@ public final class RegionHook implements IXposedHookLoadPackage {
                         HookConfig config = new HookConfig(
                                 intent.getBooleanExtra(ConfigContract.KEY_ENABLED, true),
                                 RegionProfile.find(intent.getStringExtra(
-                                        ConfigContract.KEY_PROFILE_ID)),
+                                                ConfigContract.KEY_PROFILE_ID))
+                                        .withTimeZone(intent.getStringExtra(
+                                                ConfigContract.KEY_TIME_ZONE_ID)),
                                 intent.getBooleanExtra(
                                         ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                                         true));
-                        saveTargetConfig(receiverContext, config);
+                        if (saveTargetConfig(receiverContext, config)) {
+                            Intent applied = new Intent(
+                                    ConfigContract.ACTION_PROFILE_APPLIED);
+                            applied.setPackage(ConfigContract.MODULE_PACKAGE);
+                            applied.putExtra(
+                                    ConfigContract.EXTRA_SYNC_TOKEN,
+                                    intent.getStringExtra(
+                                            ConfigContract.EXTRA_SYNC_TOKEN));
+                            applied.putExtra(
+                                    ConfigContract.EXTRA_TARGET_PACKAGE,
+                                    receiverContext.getPackageName());
+                            receiverContext.sendBroadcast(applied);
+                        }
                     }
-                    Process.killProcess(Process.myPid());
                 }
             }
         };
         if (Build.VERSION.SDK_INT >= 33) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+            context.registerReceiver(
+                    receiver,
+                    filter,
+                    ConfigContract.PERMISSION_APPLY_PROFILE,
+                    null,
+                    Context.RECEIVER_EXPORTED);
         } else {
-            context.registerReceiver(receiver, filter);
+            context.registerReceiver(
+                    receiver,
+                    filter,
+                    ConfigContract.PERMISSION_APPLY_PROFILE,
+                    null);
         }
     }
 
     private static HookConfig loadConfig(Context context) {
+        HookConfig cached = loadTargetConfig(context);
+        if (cached != null) {
+            return cached;
+        }
+
         Throwable lastFailure = null;
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
@@ -133,19 +186,17 @@ public final class RegionHook implements IXposedHookLoadPackage {
             HookConfig config = new HookConfig(
                     preferences.getBoolean(ConfigContract.KEY_ENABLED, true),
                     RegionProfile.find(preferences.getString(
-                            ConfigContract.KEY_PROFILE_ID,
-                            "US")),
+                                    ConfigContract.KEY_PROFILE_ID,
+                                    "US"))
+                            .withTimeZone(preferences.getString(
+                                    ConfigContract.KEY_TIME_ZONE_ID,
+                                    null)),
                     preferences.getBoolean(
                             ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                             true));
             saveTargetConfig(context, config);
             return config;
         } catch (Throwable throwable) {
-            HookConfig cached = loadTargetConfig(context);
-            if (cached != null) {
-                log("using TikTok-local profile cache: " + cached.profile.id);
-                return cached;
-            }
             if (lastFailure != null) {
                 logFailure("profile provider", lastFailure);
             }
@@ -155,8 +206,31 @@ public final class RegionHook implements IXposedHookLoadPackage {
     }
 
     private static HookConfig loadConfigFromProvider(Context context) {
+        Uri profileUri = Uri.parse(ConfigContract.PROFILE_URI);
+        Bundle result = context.getContentResolver().call(
+                profileUri,
+                ConfigContract.PROVIDER_METHOD_GET_ACTIVE_PROFILE,
+                null,
+                null);
+        if (result != null && result.containsKey(ConfigContract.KEY_PROFILE_ID)) {
+            RegionProfile profile = new RegionProfile(
+                    result.getString(ConfigContract.KEY_PROFILE_ID),
+                    "",
+                    result.getString(ConfigContract.COLUMN_REGION),
+                    result.getString(ConfigContract.COLUMN_COUNTRY_ISO),
+                    result.getString(ConfigContract.COLUMN_MCC_MNC),
+                    result.getString(ConfigContract.COLUMN_MCC),
+                    result.getString(ConfigContract.COLUMN_MNC),
+                    result.getString(ConfigContract.COLUMN_CARRIER),
+                    result.getString(ConfigContract.KEY_TIME_ZONE_ID));
+            return new HookConfig(
+                    result.getBoolean(ConfigContract.KEY_ENABLED, true),
+                    profile,
+                    result.getBoolean(ConfigContract.KEY_SKIP_STARTUP_LOGIN, true));
+        }
+
         try (Cursor cursor = context.getContentResolver().query(
-                Uri.parse(ConfigContract.PROFILE_URI),
+                profileUri,
                 null,
                 null,
                 null,
@@ -179,7 +253,9 @@ public final class RegionHook implements IXposedHookLoadPackage {
                     cursor.getString(cursor.getColumnIndexOrThrow(
                             ConfigContract.COLUMN_MNC)),
                     cursor.getString(cursor.getColumnIndexOrThrow(
-                            ConfigContract.COLUMN_CARRIER)));
+                            ConfigContract.COLUMN_CARRIER)),
+                    cursor.getString(cursor.getColumnIndexOrThrow(
+                            ConfigContract.COLUMN_TIME_ZONE_ID)));
             return new HookConfig(
                     cursor.getInt(cursor.getColumnIndexOrThrow(
                             ConfigContract.COLUMN_ENABLED)) != 0,
@@ -189,13 +265,14 @@ public final class RegionHook implements IXposedHookLoadPackage {
         }
     }
 
-    private static void saveTargetConfig(Context context, HookConfig config) {
+    private static boolean saveTargetConfig(Context context, HookConfig config) {
         boolean saved = context.getSharedPreferences(
                         ConfigContract.TARGET_PREFERENCES,
                         Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(ConfigContract.KEY_ENABLED, config.enabled)
                 .putString(ConfigContract.KEY_PROFILE_ID, config.profile.id)
+                .putString(ConfigContract.KEY_TIME_ZONE_ID, config.profile.timeZoneId)
                 .putBoolean(
                         ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                         config.skipStartupLogin)
@@ -203,6 +280,7 @@ public final class RegionHook implements IXposedHookLoadPackage {
         if (!saved) {
             log("unable to save TikTok-local profile cache");
         }
+        return saved;
     }
 
     private static HookConfig loadTargetConfig(Context context) {
@@ -215,8 +293,11 @@ public final class RegionHook implements IXposedHookLoadPackage {
         return new HookConfig(
                 preferences.getBoolean(ConfigContract.KEY_ENABLED, true),
                 RegionProfile.find(preferences.getString(
-                        ConfigContract.KEY_PROFILE_ID,
-                        "US")),
+                                ConfigContract.KEY_PROFILE_ID,
+                                "US"))
+                        .withTimeZone(preferences.getString(
+                                ConfigContract.KEY_TIME_ZONE_ID,
+                                null)),
                 preferences.getBoolean(
                         ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                         true));
@@ -253,6 +334,8 @@ public final class RegionHook implements IXposedHookLoadPackage {
         count += hookAll(ServiceState.class, "getOperatorNumeric", profile.mccMnc);
         count += hookAll(ServiceState.class, "getOperatorAlphaLong", profile.carrier);
         count += hookAll(ServiceState.class, "getOperatorAlphaShort", profile.carrier);
+        count += hookAll(TimeZone.class, "getDefault", TimeZone.getTimeZone(profile.timeZoneId));
+        count += hookAll(ZoneId.class, "systemDefault", ZoneId.of(profile.timeZoneId));
         return count;
     }
 
@@ -278,11 +361,11 @@ public final class RegionHook implements IXposedHookLoadPackage {
 
         count += hookSystemLocaleRegion(classLoader, profile);
         count += hookCurrentSimInfo(classLoader, profile);
+        count += hookCommonRegionFeatures(classLoader, profile);
         count += hookStoreRegion(classLoader, profile);
         if (skipStartupLogin) {
             count += hookStartupLogin(classLoader);
         }
-        count += hookProfileRequestDiagnostics(classLoader);
         return count;
     }
 
@@ -334,6 +417,7 @@ public final class RegionHook implements IXposedHookLoadPackage {
             count += hookAll(classLoader, "X.0W6U", "LIZ", storeRegionInfo);
         } catch (Throwable throwable) {
             logFailure("store region source", throwable);
+            return count;
         }
 
         count += hookAll(classLoader, "X.0Wdy", "LIZIZ", profile.region);
@@ -360,85 +444,68 @@ public final class RegionHook implements IXposedHookLoadPackage {
         return count;
     }
 
-    private static int hookProfileRequestDiagnostics(ClassLoader classLoader) {
+    private static int hookCommonRegionFeatures(
+            ClassLoader classLoader,
+            RegionProfile profile) {
         try {
-            Class<?> interceptorClass = XposedHelpers.findClass(
-                    "com.ss.android.ugc.aweme.net.interceptor.UrlTransformInterceptorTTNet",
+            Class<?> producerClass = XposedHelpers.findClass(
+                    "com.ss.ugc.clientai.core.api.FeatureProducer",
                     classLoader);
-            Set<XC_MethodHook.Unhook> hooks = XposedBridge.hookAllMethods(
-                    interceptorClass,
-                    "intercept",
-                    new XC_MethodHook() {
-                        @Override
-                        protected void beforeHookedMethod(MethodHookParam param) {
-                            if (param.args.length != 1 || param.args[0] == null) {
-                                return;
-                            }
-                            try {
-                                Object request = XposedHelpers.getObjectField(
-                                        param.args[0],
-                                        "LIZJ");
-                                String url = (String) XposedHelpers.callMethod(request, "getUrl");
-                                Uri uri = Uri.parse(url);
-                                String path = uri.getPath();
-                                if (path == null || (!path.contains("/aweme/v1/user/")
-                                        && !path.contains("/user/profile/"))) {
-                                    return;
-                                }
-                                param.setObjectExtra("region_hook_request", describeRegionRequest(uri));
-                            } catch (Throwable throwable) {
-                                Log.w(LOG_TAG, "Unable to inspect profile request", throwable);
-                            }
-                        }
-
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            Object description = param.getObjectExtra("region_hook_request");
-                            if (description == null) {
-                                return;
-                            }
-                            try {
-                                int httpCode = -1;
-                                Object response = param.getResult();
-                                if (response != null) {
-                                    Object rawResponse = XposedHelpers.getObjectField(response, "LIZ");
-                                    httpCode = XposedHelpers.getIntField(rawResponse, "LIZIZ");
-                                }
-                                Log.i(LOG_TAG, description + " http=" + httpCode);
-                            } catch (Throwable throwable) {
-                                Log.w(LOG_TAG, description + " response inspection failed", throwable);
-                            }
-                        }
-                    });
-            return hooks.size();
+            XC_MethodHook hook = new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    int featureNameIndex = param.method.getName().endsWith("$default") ? 1 : 0;
+                    if (param.args.length <= featureNameIndex
+                            || !(param.args[featureNameIndex] instanceof String)) {
+                        return;
+                    }
+                    String value = getCommonRegionFeature(
+                            profile,
+                            (String) param.args[featureNameIndex]);
+                    if (value != null) {
+                        param.setResult(value);
+                    }
+                }
+            };
+            int count = XposedBridge.hookAllMethods(
+                    producerClass,
+                    "getStringFeature$default",
+                    hook).size();
+            count += XposedBridge.hookAllMethods(
+                    producerClass,
+                    "getStringFeature",
+                    hook).size();
+            return count;
         } catch (Throwable throwable) {
-            logFailure("profile request diagnostics", throwable);
+            logFailure("common region features", throwable);
             return 0;
         }
     }
 
-    private static String describeRegionRequest(Uri uri) {
-        String[] regionKeys = {
-                "region",
-                "carrier_region",
-                "sys_region",
-                "app_region",
-                "mcc_mnc",
-                "network_sim_region",
-                "current_region",
-                "store_region",
-                "op_region",
-                "sim_region"
-        };
-        StringBuilder description = new StringBuilder("profileRequest path=")
-                .append(uri.getPath());
-        for (String key : regionKeys) {
-            String value = uri.getQueryParameter(key);
-            if (value != null) {
-                description.append(' ').append(key).append('=').append(value);
-            }
+    private static String getCommonRegionFeature(
+            RegionProfile profile,
+            String featureName) {
+        switch (featureName) {
+            case "f_global_region":
+            case "f_global_sys_region":
+            case "f_global_current_region":
+            case "f_global_carrier_region":
+            case "f_global_carrier_region_v2":
+            case "f_global_op_region":
+            case "f_global_residence":
+            case "f_global_account_region":
+                return profile.region;
+            case "f_global_mcc_mnc":
+                return profile.mccMnc;
+            case "f_global_timezone_name":
+                return profile.timeZoneId;
+            case "f_global_timezone_offset":
+                int offsetMillis = TimeZone.getTimeZone(profile.timeZoneId)
+                        .getOffset(System.currentTimeMillis());
+                return String.valueOf(offsetMillis / 1000);
+            default:
+                return null;
         }
-        return description.toString();
     }
 
     private static int hookSystemLocaleRegion(
@@ -521,7 +588,9 @@ public final class RegionHook implements IXposedHookLoadPackage {
     }
 
     private static void logFailure(String hook, Throwable throwable) {
-        log("skipped " + hook + ": " + throwable.getClass().getSimpleName());
+        String message = "skipped " + hook + ": "
+                + throwable.getClass().getSimpleName();
+        XposedBridge.log(LOG_PREFIX + message);
     }
 
     private static void log(String message) {

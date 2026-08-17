@@ -1,16 +1,22 @@
 package com.local.tiktokregion;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.LinearLayout;
@@ -18,15 +24,22 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Space;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class MainActivity extends Activity {
     private static final int ACCENT = Color.rgb(254, 44, 85);
@@ -38,10 +51,14 @@ public final class MainActivity extends Activity {
     private Switch enabledSwitch;
     private Switch skipStartupLoginSwitch;
     private RadioGroup profileGroup;
+    private Spinner timeZoneSpinner;
     private TextView activeProfileView;
     private Button applyButton;
     private Button clearButton;
     private final Map<String, Integer> profileViewIds = new HashMap<>();
+    private final Map<String, String> selectedTimeZones = new HashMap<>();
+    private RegionTimeZone[] visibleTimeZones = new RegionTimeZone[0];
+    private String spinnerProfileId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,6 +158,24 @@ public final class MainActivity extends Activity {
         skipLoginRow.addView(skipStartupLoginSwitch);
         content.addView(skipLoginRow);
 
+        LinearLayout timeZoneRow = new LinearLayout(this);
+        timeZoneRow.setGravity(Gravity.CENTER_VERTICAL);
+        timeZoneRow.setMinimumHeight(dp(56));
+
+        TextView timeZoneLabel = text(getString(R.string.time_zone_city), 16, TEXT_PRIMARY);
+        timeZoneRow.addView(timeZoneLabel, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f));
+
+        timeZoneSpinner = new Spinner(this, Spinner.MODE_DROPDOWN);
+        timeZoneSpinner.setMinimumWidth(dp(184));
+        timeZoneSpinner.setMinimumHeight(dp(48));
+        timeZoneRow.addView(timeZoneSpinner, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        content.addView(timeZoneRow);
+
         TextView sectionTitle = text(getString(R.string.region_presets), 13, TEXT_SECONDARY);
         sectionTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         LinearLayout.LayoutParams sectionParams = matchWrap();
@@ -219,7 +254,32 @@ public final class MainActivity extends Activity {
             updateActiveProfile();
         };
         enabledSwitch.setOnCheckedChangeListener(stateListener);
-        profileGroup.setOnCheckedChangeListener((group, checkedId) -> updateActiveProfile());
+        profileGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            updateTimeZoneOptions();
+            updateActiveProfile();
+        });
+        timeZoneSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(
+                    AdapterView<?> parent,
+                    View view,
+                    int position,
+                    long id) {
+                if (spinnerProfileId != null
+                        && position >= 0
+                        && position < visibleTimeZones.length) {
+                    selectedTimeZones.put(
+                            spinnerProfileId,
+                            visibleTimeZones[position].timeZoneId);
+                }
+                updateActiveProfile();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                updateActiveProfile();
+            }
+        });
         restoreSavedSelection();
         return root;
     }
@@ -234,6 +294,7 @@ public final class MainActivity extends Activity {
         boolean saved = preferences.edit()
                 .putBoolean(ConfigContract.KEY_ENABLED, enabledSwitch.isChecked())
                 .putString(ConfigContract.KEY_PROFILE_ID, selected.id)
+                .putString(ConfigContract.KEY_TIME_ZONE_ID, selected.timeZoneId)
                 .putBoolean(
                         ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                         skipStartupLoginSwitch.isChecked())
@@ -244,27 +305,28 @@ public final class MainActivity extends Activity {
         }
         updateActiveProfile();
 
-        List<String> installedPackages = findInstalledTikTokPackages();
-        if (installedPackages.isEmpty()) {
+        List<TikTokTarget> installedTargets = findInstalledTikTokTargets();
+        if (installedTargets.isEmpty()) {
             Toast.makeText(this, R.string.tiktok_not_installed, Toast.LENGTH_SHORT).show();
             return;
-        }
-
-        for (String packageName : installedPackages) {
-            sendProfileChanged(packageName, selected);
         }
 
         setRestartButtonsEnabled(false);
-        String launchPackage = installedPackages.get(0);
-        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(launchPackage);
-        if (launchIntent == null || launchIntent.getComponent() == null) {
-            setRestartButtonsEnabled(true);
-            Toast.makeText(this, R.string.tiktok_not_installed, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String launchComponent = launchIntent.getComponent().flattenToShortString();
+        boolean overrideEnabled = enabledSwitch.isChecked();
+        boolean skipStartupLogin = skipStartupLoginSwitch.isChecked();
         new Thread(() -> {
-            boolean restarted = restartTikTok(installedPackages, launchComponent);
+            boolean synchronizedConfig = synchronizeTargetConfigs(
+                    installedTargets,
+                    selected,
+                    overrideEnabled,
+                    skipStartupLogin);
+            boolean restarted;
+            if (synchronizedConfig) {
+                restarted = restartTikTok(installedTargets);
+            } else {
+                forceStopTikTok(installedTargets);
+                restarted = false;
+            }
             runOnUiThread(() -> {
                 setRestartButtonsEnabled(true);
                 if (restarted) {
@@ -272,10 +334,15 @@ public final class MainActivity extends Activity {
                 }
                 Toast.makeText(
                         this,
-                        R.string.force_stop_failed,
+                        synchronizedConfig
+                                ? R.string.force_stop_failed
+                                : R.string.config_sync_failed,
                         Toast.LENGTH_SHORT).show();
-                Intent fallbackLaunch = getPackageManager()
-                        .getLaunchIntentForPackage(launchPackage);
+                if (!synchronizedConfig) {
+                    return;
+                }
+                Intent fallbackLaunch = getPackageManager().getLaunchIntentForPackage(
+                        installedTargets.get(0).packageName);
                 if (fallbackLaunch != null) {
                     startActivity(fallbackLaunch);
                 }
@@ -288,45 +355,127 @@ public final class MainActivity extends Activity {
         clearButton.setEnabled(enabled);
     }
 
-    private List<String> findInstalledTikTokPackages() {
-        List<String> installedPackages = new ArrayList<>();
+    private List<TikTokTarget> findInstalledTikTokTargets() {
+        List<TikTokTarget> installedTargets = new ArrayList<>();
         for (String packageName : ConfigContract.TARGET_PACKAGES) {
-            if (getPackageManager().getLaunchIntentForPackage(packageName) != null) {
-                installedPackages.add(packageName);
+            Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+            if (launchIntent != null && launchIntent.getComponent() != null) {
+                installedTargets.add(new TikTokTarget(
+                        packageName,
+                        launchIntent.getComponent().flattenToShortString()));
             }
         }
-        return installedPackages;
+        return installedTargets;
     }
 
-    private void sendProfileChanged(String packageName, RegionProfile selected) {
+    private void sendProfileChanged(
+            String packageName,
+            RegionProfile selected,
+            boolean overrideEnabled,
+            boolean skipStartupLogin,
+            String syncToken) {
         Intent changed = new Intent(ConfigContract.ACTION_PROFILE_CHANGED);
         changed.setPackage(packageName);
         changed.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
-        changed.putExtra(ConfigContract.KEY_ENABLED, enabledSwitch.isChecked());
+        changed.putExtra(ConfigContract.KEY_ENABLED, overrideEnabled);
         changed.putExtra(ConfigContract.KEY_PROFILE_ID, selected.id);
-        changed.putExtra(
-                ConfigContract.KEY_SKIP_STARTUP_LOGIN,
-                skipStartupLoginSwitch.isChecked());
+        changed.putExtra(ConfigContract.KEY_TIME_ZONE_ID, selected.timeZoneId);
+        changed.putExtra(ConfigContract.KEY_SKIP_STARTUP_LOGIN, skipStartupLogin);
+        changed.putExtra(ConfigContract.EXTRA_SYNC_TOKEN, syncToken);
         sendBroadcast(changed);
     }
 
-    private static boolean restartTikTok(
-            List<String> packageNames,
-            String launchComponent) {
-        StringBuilder command = new StringBuilder();
-        for (String packageName : packageNames) {
-            if (command.length() > 0) {
-                command.append(" && ");
-            }
-            command.append("am force-stop ").append(packageName);
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private boolean synchronizeTargetConfigs(
+            List<TikTokTarget> targets,
+            RegionProfile selected,
+            boolean overrideEnabled,
+            boolean skipStartupLogin) {
+        String syncToken = UUID.randomUUID().toString();
+        Set<String> pendingPackages = Collections.synchronizedSet(new HashSet<>());
+        for (TikTokTarget target : targets) {
+            pendingPackages.add(target.packageName);
         }
-        command.append(" && am start -n ").append(launchComponent);
+        CountDownLatch appliedLatch = new CountDownLatch(targets.size());
+        BroadcastReceiver appliedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!ConfigContract.ACTION_PROFILE_APPLIED.equals(intent.getAction())
+                        || !syncToken.equals(intent.getStringExtra(
+                                ConfigContract.EXTRA_SYNC_TOKEN))) {
+                    return;
+                }
+                String packageName = intent.getStringExtra(
+                        ConfigContract.EXTRA_TARGET_PACKAGE);
+                if (packageName != null && pendingPackages.remove(packageName)) {
+                    appliedLatch.countDown();
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter(ConfigContract.ACTION_PROFILE_APPLIED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(appliedReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(appliedReceiver, filter);
+        }
 
+        try {
+            for (TikTokTarget target : targets) {
+                if (!runRootCommand("am start -n " + target.launchComponent)) {
+                    return false;
+                }
+            }
+            for (int attempt = 0; attempt < 12 && !pendingPackages.isEmpty(); attempt++) {
+                List<String> pendingSnapshot;
+                synchronized (pendingPackages) {
+                    pendingSnapshot = new ArrayList<>(pendingPackages);
+                }
+                for (String packageName : pendingSnapshot) {
+                    sendProfileChanged(
+                            packageName,
+                            selected,
+                            overrideEnabled,
+                            skipStartupLogin,
+                            syncToken);
+                }
+                try {
+                    if (appliedLatch.await(300L, TimeUnit.MILLISECONDS)) {
+                        break;
+                    }
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return pendingPackages.isEmpty();
+        } finally {
+            unregisterReceiver(appliedReceiver);
+        }
+    }
+
+    private static boolean restartTikTok(List<TikTokTarget> targets) {
+        if (!forceStopTikTok(targets)) {
+            return false;
+        }
+        return runRootCommand("am start -n " + targets.get(0).launchComponent);
+    }
+
+    private static boolean forceStopTikTok(List<TikTokTarget> targets) {
+        boolean stopped = true;
+        for (TikTokTarget target : targets) {
+            if (!runRootCommand("am force-stop " + target.packageName)) {
+                stopped = false;
+            }
+        }
+        return stopped;
+    }
+
+    private static boolean runRootCommand(String command) {
         try {
             java.lang.Process process = new ProcessBuilder(
                     "su",
                     "-c",
-                    command.toString())
+                    command)
                     .redirectErrorStream(true)
                     .start();
             try (InputStream output = process.getInputStream()) {
@@ -341,7 +490,23 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private static final class TikTokTarget {
+        final String packageName;
+        final String launchComponent;
+
+        TikTokTarget(String packageName, String launchComponent) {
+            this.packageName = packageName;
+            this.launchComponent = launchComponent;
+        }
+    }
+
     private RegionProfile getSelectedProfile() {
+        RegionProfile profile = getSelectedBaseProfile();
+        RegionTimeZone timeZone = getSelectedTimeZone(profile.id);
+        return profile.withTimeZone(timeZone.timeZoneId);
+    }
+
+    private RegionProfile getSelectedBaseProfile() {
         RadioButton selected = findViewById(profileGroup.getCheckedRadioButtonId());
         if (selected == null || selected.getTag() == null) {
             return RegionProfile.find("US");
@@ -352,6 +517,12 @@ public final class MainActivity extends Activity {
     private void restoreSavedSelection() {
         boolean enabled = preferences.getBoolean(ConfigContract.KEY_ENABLED, true);
         String profileId = preferences.getString(ConfigContract.KEY_PROFILE_ID, "US");
+        selectedTimeZones.put(
+                profileId,
+                RegionTimeZone.resolve(
+                        profileId,
+                        preferences.getString(ConfigContract.KEY_TIME_ZONE_ID, null))
+                        .timeZoneId);
         Integer viewId = profileViewIds.get(profileId);
 
         enabledSwitch.setChecked(enabled);
@@ -361,6 +532,7 @@ public final class MainActivity extends Activity {
         if (viewId != null && profileGroup.getCheckedRadioButtonId() != viewId) {
             profileGroup.check(viewId);
         }
+        updateTimeZoneOptions();
         setOptionsEnabled(enabled);
         updateActiveProfile();
     }
@@ -369,6 +541,7 @@ public final class MainActivity extends Activity {
         for (int index = 0; index < profileGroup.getChildCount(); index++) {
             profileGroup.getChildAt(index).setEnabled(enabled);
         }
+        timeZoneSpinner.setEnabled(enabled);
     }
 
     private void updateActiveProfile() {
@@ -377,10 +550,62 @@ public final class MainActivity extends Activity {
             return;
         }
         RegionProfile profile = getSelectedProfile();
+        RegionTimeZone timeZone = getSelectedTimeZone(profile.id);
         activeProfileView.setText(getString(
                 R.string.active_profile,
                 profile.displayName,
-                profile.region));
+                profile.region,
+                timeZone.displayName));
+    }
+
+    private void updateTimeZoneOptions() {
+        if (timeZoneSpinner == null || profileGroup == null) {
+            return;
+        }
+        if (spinnerProfileId != null && visibleTimeZones.length > 0) {
+            int selectedPosition = timeZoneSpinner.getSelectedItemPosition();
+            if (selectedPosition >= 0 && selectedPosition < visibleTimeZones.length) {
+                selectedTimeZones.put(
+                        spinnerProfileId,
+                        visibleTimeZones[selectedPosition].timeZoneId);
+            }
+        }
+
+        RegionProfile profile = getSelectedBaseProfile();
+        spinnerProfileId = profile.id;
+        visibleTimeZones = RegionTimeZone.all(profile.id);
+        List<String> labels = new ArrayList<>();
+        for (RegionTimeZone timeZone : visibleTimeZones) {
+            labels.add(timeZone.displayName);
+        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        timeZoneSpinner.setAdapter(adapter);
+
+        String preferredTimeZoneId = selectedTimeZones.get(profile.id);
+        RegionTimeZone selectedTimeZone = RegionTimeZone.resolve(
+                profile.id,
+                preferredTimeZoneId);
+        for (int index = 0; index < visibleTimeZones.length; index++) {
+            if (visibleTimeZones[index].timeZoneId.equals(selectedTimeZone.timeZoneId)) {
+                timeZoneSpinner.setSelection(index, false);
+                selectedTimeZones.put(profile.id, selectedTimeZone.timeZoneId);
+                break;
+            }
+        }
+    }
+
+    private RegionTimeZone getSelectedTimeZone(String profileId) {
+        if (profileId.equals(spinnerProfileId) && visibleTimeZones.length > 0) {
+            int position = timeZoneSpinner.getSelectedItemPosition();
+            if (position >= 0 && position < visibleTimeZones.length) {
+                return visibleTimeZones[position];
+            }
+        }
+        return RegionTimeZone.resolve(profileId, selectedTimeZones.get(profileId));
     }
 
     private TextView text(String value, int sizeSp, int color) {

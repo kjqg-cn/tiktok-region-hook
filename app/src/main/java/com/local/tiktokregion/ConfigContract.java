@@ -4,14 +4,21 @@ public final class ConfigContract {
     public static final String MODULE_PACKAGE = "com.local.tiktokregion";
     public static final String TARGET_MUSICAL_LY_PACKAGE = "com.zhiliaoapp.musically";
     public static final String TARGET_TRILL_PACKAGE = "com.ss.android.ugc.trill";
+    public static final String PERMISSION_APPLY_PROFILE =
+            "com.local.tiktokregion.permission.APPLY_PROFILE";
     public static final String[] TARGET_PACKAGES = {
             TARGET_MUSICAL_LY_PACKAGE,
             TARGET_TRILL_PACKAGE
     };
     public static final String PROVIDER_AUTHORITY = "com.local.tiktokregion.profiles";
     public static final String PROFILE_URI = "content://" + PROVIDER_AUTHORITY + "/active";
+    public static final String PROVIDER_METHOD_GET_ACTIVE_PROFILE = "get_active_profile";
     public static final String ACTION_PROFILE_CHANGED =
             "com.local.tiktokregion.action.PROFILE_CHANGED";
+    public static final String ACTION_PROFILE_APPLIED =
+            "com.local.tiktokregion.action.PROFILE_APPLIED";
+    public static final String EXTRA_SYNC_TOKEN = "sync_token";
+    public static final String EXTRA_TARGET_PACKAGE = "target_package";
 
     public static final String COLUMN_ENABLED = "enabled";
     public static final String COLUMN_PROFILE_ID = "profile_id";
@@ -21,12 +28,14 @@ public final class ConfigContract {
     public static final String COLUMN_MCC = "mcc";
     public static final String COLUMN_MNC = "mnc";
     public static final String COLUMN_CARRIER = "carrier";
+    public static final String COLUMN_TIME_ZONE_ID = "time_zone_id";
     public static final String COLUMN_SKIP_STARTUP_LOGIN = "skip_startup_login";
 
     public static final String PREFERENCES = "region_config";
     public static final String TARGET_PREFERENCES = "tiktok_region_hook_config";
     public static final String KEY_ENABLED = "enabled";
     public static final String KEY_PROFILE_ID = "profile_id";
+    public static final String KEY_TIME_ZONE_ID = "time_zone_id";
     public static final String KEY_SKIP_STARTUP_LOGIN = "skip_startup_login";
 
     private ConfigContract() {

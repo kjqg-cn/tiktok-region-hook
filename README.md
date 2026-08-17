@@ -4,18 +4,19 @@
 
 一个仅作用于 TikTok 进程的 LSPosed 模块，用于统一 TikTok 读取到的地区、SIM、运营商和商店区域信息。
 
-当前版本：`1.4.1`
+当前版本：`1.4.2`
 
 ## 界面预览
 
 | 地区覆盖已启用 | 跟随系统（地区覆盖已关闭） |
 | :---: | :---: |
 | <img src="docs/images/region-override-enabled.png" alt="地区覆盖已启用" width="320"> | <img src="docs/images/region-override-disabled.png" alt="跟随系统，地区覆盖已关闭" width="320"> |
-| 选择预设地区后，TikTok 使用模块提供的地区、SIM 和运营商信息。 | 不覆盖地区信息，TikTok 使用设备真实的 SIM 和系统信息。 |
+| 选择预设地区和城市后，TikTok 使用模块提供的地区、SIM、运营商和时区信息。 | 不覆盖地区信息，TikTok 使用设备真实的 SIM 和系统信息。 |
 
 ## 功能
 
 - 支持美国、英国、日本、韩国、新加坡、德国、法国、加拿大和澳大利亚预设。
+- 可在国家预设内选择常用城市/时区，例如美国的洛杉矶、纽约、芝加哥和丹佛。
 - 同步覆盖 country ISO、MCC/MNC、运营商、SIM、系统地区和 store region 等地区信号。
 - 支持 `com.zhiliaoapp.musically` 和 `com.ss.android.ugc.trill` 两种 TikTok 包名。
 - 在 LSPosed 作用域页面将已安装的 TikTok 标记为“推荐应用”并置顶。
@@ -28,7 +29,7 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| 已验证 TikTok 版本 | Google Play 46.1.3 |
+| 已验证地区覆盖版本 | Google Play 46.1.3、46.5.3 |
 | 已验证包名 | `com.zhiliaoapp.musically`、`com.ss.android.ugc.trill` |
 | 已验证 Android 版本 | Android 12、Android 16 |
 | 最低 Android 版本 | Android 8.1（API 27） |
@@ -44,13 +45,13 @@
 4. 打开 TikTok Region Hook，选择地区后点击“应用并重启 TikTok”。
 5. KernelSU/Magisk 首次询问 Root 权限时选择长期允许，否则应用无法强制停止 TikTok。
 
-更新模块后，建议在 Vector/LSPosed 中重新优化模块，再强制停止并重新打开 TikTok。覆盖安装通常会保留 Root 授权；卸载重装会清除授权，需要重新授予。
+更新模块后，确认 TikTok 仍在作用域内并已启用，然后强制停止并重新打开 TikTok 即可加载新 Hook；通常不需要重新优化模块。“重新优化”属于 ART dex/profile 优化，仅在目标进程重启后仍疑似未加载新模块时作为排查手段。覆盖安装通常会保留 Root 授权；卸载重装会清除授权，需要重新授予。
 
 ## 使用
 
 ### 切换地区
 
-选择一个地区预设，保持“启用地区覆盖”开启，然后点击“应用并重启 TikTok”。地区变化必须在 TikTok 进程完全重启后才能稳定生效。
+选择一个地区预设和对应的城市/时区，保持“启用地区覆盖”开启，然后点击“应用并重启 TikTok”。地区变化必须在 TikTok 进程完全重启后才能稳定生效。
 
 ### 恢复真实 SIM 地区
 
@@ -73,6 +74,7 @@
 - 本模块不能替代可用的国际网络环境；TikTok 服务端仍会结合 IP、账号和其他风控信号判断可用性。
 - TikTok 更新可能改变内部混淆类，使部分版本专用 Hook 失效。
 - 信息流能够加载不代表登录、用户主页和所有地区接口都一定兼容，应在更新 TikTok 后完整回归。
+- Google Play 46.5.3 在当前测试账号和网络环境下仍观察到点赞、关注操作短暂成功后状态消失；地区、SIM 和时区信号已验证生效，但模块无法保证服务端接受账号交互操作。
 - 该方案依赖 Root 和 LSPosed，不适用于未 Root 设备。
 
 ## 从源码构建

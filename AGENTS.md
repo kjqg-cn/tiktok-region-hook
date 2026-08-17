@@ -8,8 +8,11 @@
 
 ## 当前基线
 
-- 模块：`com.local.tiktokregion` 1.4.1（`versionCode 18`）
-- 已验证 TikTok：Google Play 46.1.3
+- 模块：`com.local.tiktokregion` 1.4.2（`versionCode 41`）
+- 已验证地区覆盖：Google Play 46.1.3、46.5.3
+- 46.5.3 当前测试账号仍存在点赞、关注状态消失，不能把地区覆盖通过表述为登录后交互完整兼容。
+- 当前发布包：`dist/TikTokRegionHook-1.4.2.apk`
+- 当前发布包 SHA-256：`8EF792FD9A3E74901346C4828120356D2A630CDD77D7E1A3658F494CDADF8307`
 - 目标包：`com.zhiliaoapp.musically`、`com.ss.android.ugc.trill`
 - 已验证 Android：Android 12、Android 16
 - 发布证书 SHA-256：`b6522c8682fa15850bfc97504a7d0d6a629b44b63105456047f331fba8b539df`
@@ -49,7 +52,6 @@
 - `X.0V1x`、`X.0V1y`：当前 SIM 信息。
 - `X.0W7B`、`X.0W6U`、`X.0Wdy`、`X.0We0`、`X.0XBC`、`StoreRegionSource`：store region。
 - `I18nSignUpActivityWithNoAnimation`：启动登录引导。
-- `UrlTransformInterceptorTTNet`：用户主页请求诊断，不修改请求。
 
 混淆类名不是稳定接口。适配新版时必须从新版完整 APK 集合重新确认类、方法签名、返回类型和构造参数；找不到时保留框架 Hook、记录跳过项，不要凭相似名称替换。
 
@@ -85,7 +87,7 @@
 
 - 覆盖安装模块；全新安装会丢失 KernelSU/Magisk 授权，提示用户给模块“始终允许”。
 - 在 LSPosed/Vector 中确认已安装 TikTok 被置顶、标记“推荐应用”且勾选。不要清空用户作用域来测试首次默认值。
-- Hook 代码更新后重新优化模块并强停 TikTok。
+- 更新模块 APK 后，确认作用域仍启用，然后强停并重新启动 TikTok 即可加载新 Hook；不把“重新优化”作为常规必需步骤。只有在目标进程重启后仍疑似未加载新模块、或需要排除 ART 优化缓存因素时，才将重新优化作为额外排查手段。
 - 测试 US 和至少一个非 US 地区；每次切换必须冷启动 TikTok。
 - 验证手机号前缀、信息流、评论、用户主页头像与统计、作品列表。
 - 强停模块应用和 TikTok，只启动 TikTok，验证模块无需驻留。

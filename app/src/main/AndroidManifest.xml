@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+    <permission
+        android:name="com.local.tiktokregion.permission.APPLY_PROFILE"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="com.local.tiktokregion.permission.APPLY_PROFILE" />
+
     <queries>
         <package android:name="com.zhiliaoapp.musically" />
         <package android:name="com.ss.android.ugc.trill" />

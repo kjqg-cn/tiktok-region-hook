@@ -2,15 +2,15 @@ package com.local.tiktokregion;
 
 public final class RegionProfile {
     private static final RegionProfile[] PROFILES = {
-            new RegionProfile("US", "美国", "US", "us", "310260", "310", "260", "T-Mobile"),
-            new RegionProfile("GB", "英国", "GB", "gb", "23430", "234", "30", "EE"),
-            new RegionProfile("JP", "日本", "JP", "jp", "44010", "440", "10", "NTT DOCOMO"),
-            new RegionProfile("KR", "韩国", "KR", "kr", "45008", "450", "08", "KT"),
-            new RegionProfile("SG", "新加坡", "SG", "sg", "52501", "525", "01", "Singtel"),
-            new RegionProfile("DE", "德国", "DE", "de", "26201", "262", "01", "Telekom.de"),
-            new RegionProfile("FR", "法国", "FR", "fr", "20801", "208", "01", "Orange F"),
-            new RegionProfile("CA", "加拿大", "CA", "ca", "302720", "302", "720", "Rogers"),
-            new RegionProfile("AU", "澳大利亚", "AU", "au", "50501", "505", "01", "Telstra")
+            new RegionProfile("US", "美国", "US", "us", "310260", "310", "260", "T-Mobile", "America/Los_Angeles"),
+            new RegionProfile("GB", "英国", "GB", "gb", "23430", "234", "30", "EE", "Europe/London"),
+            new RegionProfile("JP", "日本", "JP", "jp", "44010", "440", "10", "NTT DOCOMO", "Asia/Tokyo"),
+            new RegionProfile("KR", "韩国", "KR", "kr", "45008", "450", "08", "KT", "Asia/Seoul"),
+            new RegionProfile("SG", "新加坡", "SG", "sg", "52501", "525", "01", "Singtel", "Asia/Singapore"),
+            new RegionProfile("DE", "德国", "DE", "de", "26201", "262", "01", "Telekom.de", "Europe/Berlin"),
+            new RegionProfile("FR", "法国", "FR", "fr", "20801", "208", "01", "Orange F", "Europe/Paris"),
+            new RegionProfile("CA", "加拿大", "CA", "ca", "302720", "302", "720", "Rogers", "America/Toronto"),
+            new RegionProfile("AU", "澳大利亚", "AU", "au", "50501", "505", "01", "Telstra", "Australia/Sydney")
     };
 
     public final String id;
@@ -21,6 +21,7 @@ public final class RegionProfile {
     public final String mcc;
     public final String mnc;
     public final String carrier;
+    public final String timeZoneId;
 
     public RegionProfile(
             String id,
@@ -31,6 +32,20 @@ public final class RegionProfile {
             String mcc,
             String mnc,
             String carrier) {
+        this(id, displayName, region, countryIso, mccMnc, mcc, mnc, carrier,
+                defaultTimeZoneId(id));
+    }
+
+    public RegionProfile(
+            String id,
+            String displayName,
+            String region,
+            String countryIso,
+            String mccMnc,
+            String mcc,
+            String mnc,
+            String carrier,
+            String timeZoneId) {
         this.id = id;
         this.displayName = displayName;
         this.region = region;
@@ -39,6 +54,16 @@ public final class RegionProfile {
         this.mcc = mcc;
         this.mnc = mnc;
         this.carrier = carrier;
+        this.timeZoneId = timeZoneId;
+    }
+
+    private static String defaultTimeZoneId(String id) {
+        for (RegionProfile profile : PROFILES) {
+            if (profile.id.equals(id)) {
+                return profile.timeZoneId;
+            }
+        }
+        return "America/Los_Angeles";
     }
 
     public static RegionProfile[] all() {
@@ -52,5 +77,19 @@ public final class RegionProfile {
             }
         }
         return PROFILES[0];
+    }
+
+    public RegionProfile withTimeZone(String selectedTimeZoneId) {
+        String resolvedTimeZoneId = RegionTimeZone.resolve(id, selectedTimeZoneId).timeZoneId;
+        return new RegionProfile(
+                id,
+                displayName,
+                region,
+                countryIso,
+                mccMnc,
+                mcc,
+                mnc,
+                carrier,
+                resolvedTimeZoneId);
     }
 }

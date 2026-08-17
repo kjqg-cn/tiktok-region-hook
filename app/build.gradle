@@ -19,8 +19,8 @@ android {
         applicationId "com.local.tiktokregion"
         minSdk 27
         targetSdk 34
-        versionCode 18
-        versionName "1.4.1"
+        versionCode 41
+        versionName "1.4.2"
     }
 
     signingConfigs {
