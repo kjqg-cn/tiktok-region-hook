@@ -76,7 +76,7 @@ This option only closes a dismissible login prompt shortly after a new TikTok pr
 - The module does not replace a working international network route. TikTok may still evaluate IP address, account state, and other server-side risk signals.
 - TikTok updates may rename internal obfuscated classes and break version-specific hooks.
 - A working feed does not prove that login, user profiles, and every regional endpoint are compatible; perform a complete regression test after updating TikTok.
-- On Google Play 46.5.3, the current test account and network still showed likes and follows briefly succeeding before their state disappeared. Region, SIM, and time-zone signals were verified, but the module cannot guarantee that TikTok's servers will accept account interaction writes.
+- On Google Play 46.5.3, the test account and network previously showed likes and follows briefly succeeding before their state disappeared. Likes later recovered; taken together, the behavior is more consistent with account or server-side risk controls, and there is no evidence to attribute it to the module.
 - On Google Play 46.6.3, the feed, comments, user profiles, likes, store-region behavior, and other tested interactions have been verified working. Follow state did not persist for the current test account, which is more consistent with account or server-side risk controls and cannot be attributed to the module.
 - Root and LSPosed are required. This solution does not support non-rooted devices.
 
