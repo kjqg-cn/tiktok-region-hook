@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -19,6 +20,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -28,6 +30,7 @@ import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.PopupMenu;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -59,6 +62,8 @@ public final class MainActivity extends Activity {
     private final Map<String, String> selectedTimeZones = new HashMap<>();
     private RegionTimeZone[] visibleTimeZones = new RegionTimeZone[0];
     private String spinnerProfileId;
+    private boolean aboutVisible;
+    private PendingEditorState pendingEditorState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,9 +80,18 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (preferences != null && enabledSwitch != null && profileGroup != null) {
+        if (!aboutVisible && preferences != null && enabledSwitch != null && profileGroup != null) {
             restoreSavedSelection();
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (aboutVisible) {
+            showMainPage();
+            return;
+        }
+        super.onBackPressed();
     }
 
     private View createContent() {
@@ -89,9 +103,22 @@ public final class MainActivity extends Activity {
         header.setOrientation(LinearLayout.VERTICAL);
         header.setPadding(dp(24), dp(24), dp(24), dp(18));
 
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView title = text(getString(R.string.title), 24, TEXT_PRIMARY);
         title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        header.addView(title);
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f));
+
+        ImageButton aboutButton = iconButton(
+                R.drawable.ic_more_vertical,
+                R.string.about_accessibility);
+        aboutButton.setOnClickListener(this::showAboutMenu);
+        titleRow.addView(aboutButton);
+        header.addView(titleRow);
 
         activeProfileView = text("", 14, TEXT_SECONDARY);
         LinearLayout.LayoutParams activeParams = matchWrap();
@@ -105,11 +132,9 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(1)));
 
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(16), dp(20), dp(16));
+        LinearLayout fixedContent = new LinearLayout(this);
+        fixedContent.setOrientation(LinearLayout.VERTICAL);
+        fixedContent.setPadding(dp(20), dp(16), dp(20), 0);
 
         LinearLayout switchRow = new LinearLayout(this);
         switchRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -130,7 +155,7 @@ public final class MainActivity extends Activity {
                 new int[]{ACCENT, Color.rgb(142, 145, 151)}));
         enabledSwitch.setChecked(preferences.getBoolean(ConfigContract.KEY_ENABLED, true));
         switchRow.addView(enabledSwitch);
-        content.addView(switchRow);
+        fixedContent.addView(switchRow);
 
         LinearLayout skipLoginRow = new LinearLayout(this);
         skipLoginRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -156,7 +181,7 @@ public final class MainActivity extends Activity {
                 ConfigContract.KEY_SKIP_STARTUP_LOGIN,
                 true));
         skipLoginRow.addView(skipStartupLoginSwitch);
-        content.addView(skipLoginRow);
+        fixedContent.addView(skipLoginRow);
 
         LinearLayout timeZoneRow = new LinearLayout(this);
         timeZoneRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -174,14 +199,23 @@ public final class MainActivity extends Activity {
         timeZoneRow.addView(timeZoneSpinner, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
-        content.addView(timeZoneRow);
+        fixedContent.addView(timeZoneRow);
 
         TextView sectionTitle = text(getString(R.string.region_presets), 13, TEXT_SECONDARY);
         sectionTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         LinearLayout.LayoutParams sectionParams = matchWrap();
         sectionParams.topMargin = dp(14);
         sectionParams.bottomMargin = dp(6);
-        content.addView(sectionTitle, sectionParams);
+        fixedContent.addView(sectionTitle, sectionParams);
+        root.addView(fixedContent, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        LinearLayout profileContent = new LinearLayout(this);
+        profileContent.setOrientation(LinearLayout.VERTICAL);
+        profileContent.setPadding(dp(20), 0, dp(20), dp(16));
 
         profileGroup = new RadioGroup(this);
         profileGroup.setOrientation(RadioGroup.VERTICAL);
@@ -211,11 +245,11 @@ public final class MainActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT));
             profileViewIds.put(profile.id, option.getId());
         }
-        content.addView(profileGroup);
+        profileContent.addView(profileGroup);
 
         Space bottomSpace = new Space(this);
-        content.addView(bottomSpace, new LinearLayout.LayoutParams(1, dp(12)));
-        scrollView.addView(content);
+        profileContent.addView(bottomSpace, new LinearLayout.LayoutParams(1, dp(12)));
+        scrollView.addView(profileContent);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -282,6 +316,218 @@ public final class MainActivity extends Activity {
         });
         restoreSavedSelection();
         return root;
+    }
+
+    private ImageButton iconButton(int iconResId, int descriptionResId) {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(iconResId);
+        button.setContentDescription(getString(descriptionResId));
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setColorFilter(TEXT_PRIMARY);
+        button.setMinimumWidth(dp(48));
+        button.setMinimumHeight(dp(48));
+        button.setPadding(dp(12), dp(12), dp(12), dp(12));
+        return button;
+    }
+
+    private void showAboutMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, R.string.about_menu);
+        popupMenu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1) {
+                showAboutPage();
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    private void showAboutPage() {
+        pendingEditorState = captureEditorState();
+        aboutVisible = true;
+        setContentView(createAboutContent());
+    }
+
+    private void showMainPage() {
+        aboutVisible = false;
+        setContentView(createContent());
+    }
+
+    private View createAboutContent() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
+
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(12), dp(12), dp(24), dp(12));
+        ImageButton backButton = iconButton(
+                R.drawable.ic_arrow_back,
+                R.string.about_back);
+        backButton.setOnClickListener(view -> showMainPage());
+        toolbar.addView(backButton);
+        TextView title = text(getString(R.string.about_title), 20, TEXT_PRIMARY);
+        title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        toolbar.addView(title, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(toolbar);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(DIVIDER);
+        root.addView(divider, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)));
+
+        ScrollView scrollView = new ScrollView(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(28), dp(20), dp(32));
+
+        TextView moduleName = text(
+                getString(R.string.about_module_name),
+                24,
+                TEXT_PRIMARY);
+        moduleName.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        content.addView(moduleName);
+
+        TextView moduleVersion = text(
+                getString(R.string.about_module_version, getModuleVersion()),
+                14,
+                TEXT_SECONDARY);
+        LinearLayout.LayoutParams versionParams = matchWrap();
+        versionParams.topMargin = dp(8);
+        content.addView(moduleVersion, versionParams);
+
+        content.addView(sectionLabel(R.string.about_compatibility), sectionMargin());
+        LinearLayout compatibility = new LinearLayout(this);
+        compatibility.setOrientation(LinearLayout.VERTICAL);
+        compatibility.setBackgroundColor(Color.rgb(247, 247, 248));
+        compatibility.setPadding(dp(16), dp(14), dp(16), dp(14));
+        TextView latestLabel = text(
+                getString(R.string.about_latest_tiktok),
+                15,
+                TEXT_PRIMARY);
+        compatibility.addView(latestLabel);
+        TextView latestVersion = text(
+                "Google Play " + ConfigContract.VERIFIED_LATEST_TIKTOK_VERSION,
+                16,
+                TEXT_PRIMARY);
+        latestVersion.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        LinearLayout.LayoutParams latestParams = matchWrap();
+        latestParams.topMargin = dp(8);
+        compatibility.addView(latestVersion, latestParams);
+        TextView packages = text(getString(
+                R.string.about_target_packages,
+                ConfigContract.TARGET_MUSICAL_LY_PACKAGE,
+                ConfigContract.TARGET_TRILL_PACKAGE), 13, TEXT_SECONDARY);
+        LinearLayout.LayoutParams packagesParams = matchWrap();
+        packagesParams.topMargin = dp(8);
+        compatibility.addView(packages, packagesParams);
+        content.addView(compatibility);
+
+        content.addView(sectionLabel(R.string.about_project), sectionMargin());
+        content.addView(linkRow(
+                R.string.about_source,
+                R.string.about_source_summary,
+                ConfigContract.SOURCE_URL));
+        content.addView(linkRow(
+                R.string.about_feedback,
+                R.string.about_feedback_summary,
+                ConfigContract.ISSUES_URL));
+        content.addView(linkRow(
+                R.string.about_license,
+                R.string.about_license_summary,
+                ConfigContract.LICENSE_URL));
+
+        TextView disclaimer = text(
+                "本项目为独立的 Root + LSPosed 设备自定义工具，与 TikTok、ByteDance 及相关平台不存在隶属、合作或授权关系。",
+                13,
+                TEXT_SECONDARY);
+        disclaimer.setLineSpacing(0f, 1.35f);
+        LinearLayout.LayoutParams disclaimerParams = matchWrap();
+        disclaimerParams.topMargin = dp(42);
+        content.addView(disclaimer, disclaimerParams);
+
+        scrollView.addView(content);
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f));
+        return root;
+    }
+
+    private PendingEditorState captureEditorState() {
+        if (enabledSwitch == null || skipStartupLoginSwitch == null || profileGroup == null) {
+            return null;
+        }
+        RegionProfile profile = getSelectedBaseProfile();
+        RegionTimeZone timeZone = getSelectedTimeZone(profile.id);
+        return new PendingEditorState(
+                enabledSwitch.isChecked(),
+                skipStartupLoginSwitch.isChecked(),
+                profile.id,
+                timeZone.timeZoneId);
+    }
+
+    private TextView sectionLabel(int stringResId) {
+        TextView label = text(getString(stringResId), 13, TEXT_SECONDARY);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        return label;
+    }
+
+    private LinearLayout.LayoutParams sectionMargin() {
+        LinearLayout.LayoutParams params = matchWrap();
+        params.topMargin = dp(28);
+        params.bottomMargin = dp(8);
+        return params;
+    }
+
+    private View linkRow(int titleResId, int summaryResId, String url) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(dp(64));
+        row.setPadding(0, dp(8), 0, dp(8));
+        row.setContentDescription(getString(titleResId) + "，" + getString(summaryResId));
+        row.setOnClickListener(view -> openExternalUrl(url));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text(getString(titleResId), 16, TEXT_PRIMARY);
+        copy.addView(title);
+        TextView summary = text(getString(summaryResId), 13, TEXT_SECONDARY);
+        LinearLayout.LayoutParams summaryParams = matchWrap();
+        summaryParams.topMargin = dp(4);
+        copy.addView(summary, summaryParams);
+        row.addView(copy, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f));
+
+        TextView arrow = text("›", 28, TEXT_SECONDARY);
+        row.addView(arrow, new LinearLayout.LayoutParams(
+                dp(32),
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        return row;
+    }
+
+    private void openExternalUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Throwable throwable) {
+            Toast.makeText(this, R.string.about_external_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private String getModuleVersion() {
+        try {
+            return getPackageManager()
+                    .getPackageInfo(getPackageName(), 0)
+                    .versionName;
+        } catch (Throwable throwable) {
+            return "unknown";
+        }
     }
 
     private void clearRegionAndRestartTikTok() {
@@ -515,20 +761,30 @@ public final class MainActivity extends Activity {
     }
 
     private void restoreSavedSelection() {
-        boolean enabled = preferences.getBoolean(ConfigContract.KEY_ENABLED, true);
-        String profileId = preferences.getString(ConfigContract.KEY_PROFILE_ID, "US");
+        PendingEditorState pending = pendingEditorState;
+        pendingEditorState = null;
+        boolean enabled = pending != null
+                ? pending.enabled
+                : preferences.getBoolean(ConfigContract.KEY_ENABLED, true);
+        boolean skipStartupLogin = pending != null
+                ? pending.skipStartupLogin
+                : preferences.getBoolean(ConfigContract.KEY_SKIP_STARTUP_LOGIN, true);
+        String profileId = pending != null
+                ? pending.profileId
+                : preferences.getString(ConfigContract.KEY_PROFILE_ID, "US");
+        String timeZoneId = pending != null
+                ? pending.timeZoneId
+                : preferences.getString(ConfigContract.KEY_TIME_ZONE_ID, null);
         selectedTimeZones.put(
                 profileId,
                 RegionTimeZone.resolve(
                         profileId,
-                        preferences.getString(ConfigContract.KEY_TIME_ZONE_ID, null))
+                        timeZoneId)
                         .timeZoneId);
         Integer viewId = profileViewIds.get(profileId);
 
         enabledSwitch.setChecked(enabled);
-        skipStartupLoginSwitch.setChecked(preferences.getBoolean(
-                ConfigContract.KEY_SKIP_STARTUP_LOGIN,
-                true));
+        skipStartupLoginSwitch.setChecked(skipStartupLogin);
         if (viewId != null && profileGroup.getCheckedRadioButtonId() != viewId) {
             profileGroup.check(viewId);
         }
@@ -625,5 +881,23 @@ public final class MainActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private static final class PendingEditorState {
+        final boolean enabled;
+        final boolean skipStartupLogin;
+        final String profileId;
+        final String timeZoneId;
+
+        PendingEditorState(
+                boolean enabled,
+                boolean skipStartupLogin,
+                String profileId,
+                String timeZoneId) {
+            this.enabled = enabled;
+            this.skipStartupLogin = skipStartupLogin;
+            this.profileId = profileId;
+            this.timeZoneId = timeZoneId;
+        }
     }
 }

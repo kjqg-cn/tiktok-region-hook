@@ -8,17 +8,19 @@
 
 ## 当前基线
 
-- 模块：`com.local.tiktokregion` 1.4.2（`versionCode 41`）
-- 已验证地区覆盖：Google Play 46.1.3、46.5.3
+- 模块：`com.local.tiktokregion` 1.5.0（`versionCode 42`）
+- 已验证的最新 TikTok 版本：Google Play 46.6.3
+- 其他已验证 TikTok 版本：Google Play 46.1.3、46.5.3
 - 46.5.3 当前测试账号仍存在点赞、关注状态消失，不能把地区覆盖通过表述为登录后交互完整兼容。
-- 当前发布包：`dist/TikTokRegionHook-1.4.2.apk`
-- 当前发布包 SHA-256：`8EF792FD9A3E74901346C4828120356D2A630CDD77D7E1A3658F494CDADF8307`
+- 46.6.3 已验证信息流、评论、用户主页、点赞和 store region 等信息与交互正常；当前测试账号的关注状态未持久化，倾向于账号或服务端风控，不能归因于模块。
+- 当前发布包：`dist/TikTokRegionHook-1.5.0.apk`
+- 当前发布包 SHA-256：`B8F4F9F304C7B82AC88C25A38FBFEDFE0D415F71E0D052F51A7402E4E4EFE06C`
 - 目标包：`com.zhiliaoapp.musically`、`com.ss.android.ugc.trill`
 - 已验证 Android：Android 12、Android 16
 - 发布证书 SHA-256：`b6522c8682fa15850bfc97504a7d0d6a629b44b63105456047f331fba8b539df`
 - 编译：JDK 21、Android API 34、Gradle Wrapper 8.9
 
-每次发版后同步更新本文件和中英文 README 中的模块版本、已验证 TikTok 版本及兼容性。
+每次发版后同步更新本文件和中英文 README 中的模块版本、已验证的最新 TikTok 版本及兼容性。
 
 ## 必须保持的行为
 
@@ -29,6 +31,14 @@
 - TikTok 保留目标应用私有配置缓存，模块应用不能依赖常驻后台。
 - Root 只能用于 `am force-stop` 和 `am start -n`，不能修改全局 Android 设置。
 - 推荐作用域同时维护 Manifest `xposedscope`、`res/values/arrays.xml` 和 `META-INF/xposed/scope.list`。
+
+## 设置页关于入口
+
+- 设置页右上角应提供一个可点击的更多/关于图标。
+- 点击图标后应弹出“关于”入口；进入关于页后至少显示当前模块版本、已验证的最新 TikTok 版本、源代码入口和反馈入口。
+- “源代码”指向项目主页：`https://github.com/kjqg-cn/tiktok-region-hook`。
+- “反馈”指向 GitHub Issues：`https://github.com/kjqg-cn/tiktok-region-hook/issues`。
+- 关于页可继续扩展许可证、构建信息、免责声明等内容；新增外链必须使用明确的可访问性描述，并通过系统浏览器打开。
 
 ## 代码入口
 
@@ -43,9 +53,9 @@
 
 ## 版本相关 Hook
 
-稳定层覆盖 `TelephonyManager`、`SubscriptionInfo` 和 `ServiceState` 的地区、SIM 与运营商 API。
+稳定层覆盖 `TelephonyManager`、`SubscriptionInfo` 和 `ServiceState` 的地区、SIM 与运营商 API，并覆盖 `TimeZone.getDefault`、`ZoneId.systemDefault` 的时区 API。
 
-46.1.3 内部 Hook 当前涉及：
+以下是从 46.1.3 分析得到、当前实现沿用的内部 Hook。46.6.3 的静态核对显示部分混淆类名已重新分配到无关类，但 FeatureProducer 公共特征字段路径和稳定 Android API 仍可工作；失效的版本专用 Hook 必须允许跳过。后续适配其他新版本时，必须从对应版本重新确认这些类和方法，并更新本段的版本说明：
 
 - `X.0VV8`、`X.11ga`：SIM/网络/应用地区。
 - `X.0VV4`：Locale 地区。

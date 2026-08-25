@@ -2,6 +2,13 @@ package com.local.tiktokregion;
 
 public final class ConfigContract {
     public static final String MODULE_PACKAGE = "com.local.tiktokregion";
+    public static final String VERIFIED_LATEST_TIKTOK_VERSION = "46.6.3";
+    public static final String SOURCE_URL =
+            "https://github.com/kjqg-cn/tiktok-region-hook";
+    public static final String ISSUES_URL =
+            "https://github.com/kjqg-cn/tiktok-region-hook/issues";
+    public static final String LICENSE_URL =
+            "https://github.com/kjqg-cn/tiktok-region-hook/blob/main/LICENSE";
     public static final String TARGET_MUSICAL_LY_PACKAGE = "com.zhiliaoapp.musically";
     public static final String TARGET_TRILL_PACKAGE = "com.ss.android.ugc.trill";
     public static final String PERMISSION_APPLY_PROFILE =

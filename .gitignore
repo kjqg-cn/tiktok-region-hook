@@ -18,6 +18,9 @@ dist/
 *.apks
 *.aab
 
+# Local design prototypes
+docs/prototypes/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -4,7 +4,7 @@
 
 An LSPosed module that provides a consistent set of region, SIM, carrier, and store-region signals inside supported TikTok processes.
 
-Current version: `1.4.2`
+Current version: `1.5.0`
 
 ## Interface Preview
 
@@ -24,12 +24,14 @@ Current version: `1.4.2`
 - "Apply and restart TikTok" saves the profile, force-stops TikTok, and relaunches it.
 - "Clear region and restart TikTok" disables all overrides and restores the real SIM and system signals.
 - Caches the effective configuration for TikTok cold starts, so the module application does not need to remain in the background.
+- The top-right About entry shows the module version, latest verified TikTok version, source code, feedback, and license links.
 
 ## Compatibility
 
 | Item | Status |
 | --- | --- |
-| Tested region-override versions | Google Play 46.1.3, 46.5.3 |
+| Latest verified TikTok version | Google Play 46.6.3 |
+| Other tested TikTok versions | Google Play 46.1.3, 46.5.3 |
 | Tested package names | `com.zhiliaoapp.musically`, `com.ss.android.ugc.trill` |
 | Tested Android versions | Android 12, Android 16 |
 | Minimum Android version | Android 8.1 (API 27) |
@@ -75,6 +77,7 @@ This option only closes a dismissible login prompt shortly after a new TikTok pr
 - TikTok updates may rename internal obfuscated classes and break version-specific hooks.
 - A working feed does not prove that login, user profiles, and every regional endpoint are compatible; perform a complete regression test after updating TikTok.
 - On Google Play 46.5.3, the current test account and network still showed likes and follows briefly succeeding before their state disappeared. Region, SIM, and time-zone signals were verified, but the module cannot guarantee that TikTok's servers will accept account interaction writes.
+- On Google Play 46.6.3, the feed, comments, user profiles, likes, store-region behavior, and other tested interactions have been verified working. Follow state did not persist for the current test account, which is more consistent with account or server-side risk controls and cannot be attributed to the module.
 - Root and LSPosed are required. This solution does not support non-rooted devices.
 
 ## Build From Source
