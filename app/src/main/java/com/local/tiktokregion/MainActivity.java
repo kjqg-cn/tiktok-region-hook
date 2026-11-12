@@ -2,6 +2,7 @@ package com.local.tiktokregion;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,23 +11,25 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
+import android.view.MotionEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
-import android.widget.Space;
-import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -49,27 +52,31 @@ public final class MainActivity extends Activity {
     private static final int TEXT_PRIMARY = Color.rgb(22, 24, 29);
     private static final int TEXT_SECONDARY = Color.rgb(93, 95, 100);
     private static final int DIVIDER = Color.rgb(229, 229, 232);
+    private static final int BACKGROUND = Color.rgb(245, 246, 248);
+    private long touchReadyAt;
+    private boolean acceptedTouch;
 
     private SharedPreferences preferences;
     private Switch enabledSwitch;
     private Switch skipStartupLoginSwitch;
     private RadioGroup profileGroup;
-    private Spinner timeZoneSpinner;
+    private LinearLayout timeZoneRow;
+    private TextView timeZoneValue;
     private TextView activeProfileView;
+    private TextView moduleStatusView;
+    private boolean restartInProgress;
     private Button applyButton;
     private Button clearButton;
     private final Map<String, Integer> profileViewIds = new HashMap<>();
     private final Map<String, String> selectedTimeZones = new HashMap<>();
-    private RegionTimeZone[] visibleTimeZones = new RegionTimeZone[0];
-    private String spinnerProfileId;
     private boolean aboutVisible;
     private PendingEditorState pendingEditorState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.WHITE);
-        getWindow().setNavigationBarColor(Color.WHITE);
+        getWindow().setStatusBarColor(BACKGROUND);
+        getWindow().setNavigationBarColor(BACKGROUND);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
@@ -78,8 +85,28 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // Consume the entire launch gesture, including a trailing UP or rapid second tap.
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            acceptedTouch = event.getDownTime() >= touchReadyAt;
+        }
+        if (!acceptedTouch) {
+            return true;
+        }
+        boolean handled = super.dispatchTouchEvent(event);
+        if (event.getActionMasked() == MotionEvent.ACTION_UP
+                || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            acceptedTouch = false;
+        }
+        return handled;
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        // Guard app entry, not focus returning from a picker or PopupMenu.
+        acceptedTouch = false;
+        touchReadyAt = SystemClock.uptimeMillis() + 500L;
         if (!aboutVisible && preferences != null && enabledSwitch != null && profileGroup != null) {
             restoreSavedSelection();
         }
@@ -97,225 +124,187 @@ public final class MainActivity extends Activity {
     private View createContent() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+        root.setBackgroundColor(BACKGROUND);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(24), dp(24), dp(24), dp(18));
-
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView title = text(getString(R.string.title), 24, TEXT_PRIMARY);
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(16), dp(4), dp(12), dp(4));
+        TextView title = text(getString(R.string.title), 22, TEXT_PRIMARY);
         title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        titleRow.addView(title, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f));
-
-        ImageButton aboutButton = iconButton(
-                R.drawable.ic_more_vertical,
-                R.string.about_accessibility);
+        toolbar.addView(title, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageButton aboutButton = iconButton(R.drawable.ic_more_vertical, R.string.about_accessibility);
         aboutButton.setOnClickListener(this::showAboutMenu);
-        titleRow.addView(aboutButton);
-        header.addView(titleRow);
+        toolbar.addView(aboutButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        root.addView(toolbar, matchWrap());
 
-        activeProfileView = text("", 14, TEXT_SECONDARY);
-        LinearLayout.LayoutParams activeParams = matchWrap();
-        activeParams.topMargin = dp(6);
-        header.addView(activeProfileView, activeParams);
-        root.addView(header);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(12), 0, dp(12), dp(8));
+        moduleStatusView = text("", 13, TEXT_SECONDARY);
+        moduleStatusView.setPadding(dp(12), dp(8), dp(12), dp(8));
+        body.addView(moduleStatusView, matchWrap());
 
-        View headerDivider = new View(this);
-        headerDivider.setBackgroundColor(DIVIDER);
-        root.addView(headerDivider, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(1)));
+        activeProfileView = text("", 13, TEXT_SECONDARY);
+        activeProfileView.setPadding(dp(4), dp(8), dp(4), dp(8));
+        body.addView(activeProfileView, matchWrap());
 
-        LinearLayout fixedContent = new LinearLayout(this);
-        fixedContent.setOrientation(LinearLayout.VERTICAL);
-        fixedContent.setPadding(dp(20), dp(16), dp(20), 0);
-
-        LinearLayout switchRow = new LinearLayout(this);
-        switchRow.setGravity(Gravity.CENTER_VERTICAL);
-        switchRow.setMinimumHeight(dp(56));
-
-        TextView switchLabel = text(getString(R.string.enable_override), 16, TEXT_PRIMARY);
-        switchRow.addView(switchLabel, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f));
-
-        enabledSwitch = new Switch(this);
-        enabledSwitch.setThumbTintList(new ColorStateList(
-                new int[][]{
-                        new int[]{android.R.attr.state_checked},
-                        new int[]{}
-                },
-                new int[]{ACCENT, Color.rgb(142, 145, 151)}));
+        LinearLayout settings = new LinearLayout(this);
+        settings.setOrientation(LinearLayout.VERTICAL);
+        settings.setBackground(rounded(Color.WHITE, 12));
+        enabledSwitch = settingSwitch(R.string.enable_override);
         enabledSwitch.setChecked(preferences.getBoolean(ConfigContract.KEY_ENABLED, true));
-        switchRow.addView(enabledSwitch);
-        fixedContent.addView(switchRow);
-
-        LinearLayout skipLoginRow = new LinearLayout(this);
-        skipLoginRow.setGravity(Gravity.CENTER_VERTICAL);
-        skipLoginRow.setMinimumHeight(dp(56));
-
-        TextView skipLoginLabel = text(
-                getString(R.string.skip_startup_login),
-                16,
-                TEXT_PRIMARY);
-        skipLoginRow.addView(skipLoginLabel, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f));
-
-        skipStartupLoginSwitch = new Switch(this);
-        skipStartupLoginSwitch.setThumbTintList(new ColorStateList(
-                new int[][]{
-                        new int[]{android.R.attr.state_checked},
-                        new int[]{}
-                },
-                new int[]{ACCENT, Color.rgb(142, 145, 151)}));
+        settings.addView(enabledSwitch, matchWrap());
+        skipStartupLoginSwitch = settingSwitch(R.string.skip_startup_login);
         skipStartupLoginSwitch.setChecked(preferences.getBoolean(
-                ConfigContract.KEY_SKIP_STARTUP_LOGIN,
-                true));
-        skipLoginRow.addView(skipStartupLoginSwitch);
-        fixedContent.addView(skipLoginRow);
+                ConfigContract.KEY_SKIP_STARTUP_LOGIN, true));
+        settings.addView(skipStartupLoginSwitch, matchWrap());
 
-        LinearLayout timeZoneRow = new LinearLayout(this);
+        timeZoneRow = new LinearLayout(this);
         timeZoneRow.setGravity(Gravity.CENTER_VERTICAL);
-        timeZoneRow.setMinimumHeight(dp(56));
+        timeZoneRow.setMinimumHeight(dp(48));
+        timeZoneRow.setPadding(dp(12), dp(6), dp(12), dp(6));
+        timeZoneRow.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(20, 0, 0, 0)), null, rounded(Color.WHITE, 12)));
+        TextView timeZoneLabel = text(getString(R.string.time_zone_city), 14, TEXT_PRIMARY);
+        timeZoneRow.addView(timeZoneLabel);
+        timeZoneValue = text("", 13, TEXT_SECONDARY);
+        timeZoneValue.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        timeZoneValue.setPadding(dp(8), 0, 0, 0);
+        timeZoneRow.addView(timeZoneValue, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        timeZoneRow.setOnClickListener(view -> showTimeZonePicker());
+        settings.addView(timeZoneRow, matchWrap());
+        body.addView(settings, matchWrap());
 
-        TextView timeZoneLabel = text(getString(R.string.time_zone_city), 16, TEXT_PRIMARY);
-        timeZoneRow.addView(timeZoneLabel, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f));
-
-        timeZoneSpinner = new Spinner(this, Spinner.MODE_DROPDOWN);
-        timeZoneSpinner.setMinimumWidth(dp(184));
-        timeZoneSpinner.setMinimumHeight(dp(48));
-        timeZoneRow.addView(timeZoneSpinner, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-        fixedContent.addView(timeZoneRow);
-
-        TextView sectionTitle = text(getString(R.string.region_presets), 13, TEXT_SECONDARY);
-        sectionTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        LinearLayout.LayoutParams sectionParams = matchWrap();
-        sectionParams.topMargin = dp(14);
-        sectionParams.bottomMargin = dp(6);
-        fixedContent.addView(sectionTitle, sectionParams);
-        root.addView(fixedContent, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        LinearLayout profileContent = new LinearLayout(this);
-        profileContent.setOrientation(LinearLayout.VERTICAL);
-        profileContent.setPadding(dp(20), 0, dp(20), dp(16));
-
+        TextView section = sectionLabel(R.string.region_presets);
+        section.setPadding(dp(4), dp(12), 0, dp(6));
+        body.addView(section, matchWrap());
         profileGroup = new RadioGroup(this);
         profileGroup.setOrientation(RadioGroup.VERTICAL);
+        profileViewIds.clear();
         for (RegionProfile profile : RegionProfile.all()) {
             RadioButton option = new RadioButton(this);
             option.setId(View.generateViewId());
             option.setTag(profile.id);
-            option.setText(getString(
-                    R.string.profile_row,
-                    profile.displayName,
-                    profile.region,
-                    profile.carrier,
-                    profile.mccMnc));
+            String label = getString(R.string.profile_row,
+                    profile.displayName, profile.region, profile.carrier, profile.mccMnc);
+            SpannableString styledLabel = new SpannableString(label);
+            int detailStart = label.indexOf('\n') + 1;
+            styledLabel.setSpan(new RelativeSizeSpan(0.85f), detailStart, label.length(), 0);
+            option.setText(styledLabel);
             option.setTextColor(TEXT_PRIMARY);
-            option.setTextSize(16);
+            option.setTextSize(14);
             option.setGravity(Gravity.CENTER_VERTICAL);
-            option.setMinHeight(dp(72));
-            option.setPadding(dp(4), dp(8), dp(4), dp(8));
+            option.setMinHeight(dp(56));
+            option.setPadding(dp(10), dp(6), dp(10), dp(6));
+            StateListDrawable states = new StateListDrawable();
+            GradientDrawable selectedBackground = rounded(Color.rgb(255, 241, 245), 12);
+            selectedBackground.setStroke(dp(1), ACCENT);
+            states.addState(new int[]{android.R.attr.state_checked}, selectedBackground);
+            states.addState(new int[]{}, rounded(Color.WHITE, 12));
+            option.setBackground(states);
             option.setButtonTintList(new ColorStateList(
-                    new int[][]{
-                            new int[]{android.R.attr.state_checked},
-                            new int[]{}
-                    },
+                    new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
                     new int[]{ACCENT, Color.rgb(142, 145, 151)}));
-            profileGroup.addView(option, new RadioGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            RadioGroup.LayoutParams params = new RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.bottomMargin = dp(4);
+            profileGroup.addView(option, params);
             profileViewIds.put(profile.id, option.getId());
         }
-        profileContent.addView(profileGroup);
+        body.addView(profileGroup, matchWrap());
+        scroll.addView(body);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        Space bottomSpace = new Space(this);
-        profileContent.addView(bottomSpace, new LinearLayout.LayoutParams(1, dp(12)));
-        scrollView.addView(profileContent);
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f));
-
-        applyButton = new Button(this);
-        applyButton.setText(R.string.apply_and_open);
-        applyButton.setTextColor(Color.WHITE);
-        applyButton.setTextSize(16);
-        applyButton.setAllCaps(false);
-        applyButton.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        applyButton.setBackgroundTintList(ColorStateList.valueOf(ACCENT));
-        applyButton.setOnClickListener(view -> applyAndRestartTikTok());
-        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(56));
-        buttonParams.setMargins(dp(20), dp(10), dp(20), dp(4));
-        root.addView(applyButton, buttonParams);
-
-        clearButton = new Button(this);
-        clearButton.setText(R.string.clear_and_restart);
-        clearButton.setTextColor(TEXT_PRIMARY);
-        clearButton.setTextSize(15);
-        clearButton.setAllCaps(false);
-        clearButton.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        clearButton.setBackgroundTintList(ColorStateList.valueOf(Color.rgb(238, 238, 240)));
+        clearButton = actionButton(R.string.clear_and_restart, false);
         clearButton.setOnClickListener(view -> clearRegionAndRestartTikTok());
-        LinearLayout.LayoutParams clearButtonParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(52));
-        clearButtonParams.setMargins(dp(20), 0, dp(20), dp(14));
-        root.addView(clearButton, clearButtonParams);
+        applyButton = actionButton(R.string.apply_and_open, true);
+        applyButton.setOnClickListener(view -> applyAndRestartTikTok());
+        LinearLayout actions = new LinearLayout(this);
+        actions.setBaselineAligned(false);
+        actions.setPadding(dp(12), dp(6), dp(12), dp(8));
+        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        clearParams.setMarginEnd(dp(4));
+        actions.addView(clearButton, clearParams);
+        LinearLayout.LayoutParams applyParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        applyParams.setMarginStart(dp(4));
+        actions.addView(applyButton, applyParams);
+        root.addView(actions, matchWrap());
 
-        CompoundButton.OnCheckedChangeListener stateListener = (button, checked) -> {
+        enabledSwitch.setOnCheckedChangeListener((button, checked) -> {
             setOptionsEnabled(checked);
             updateActiveProfile();
-        };
-        enabledSwitch.setOnCheckedChangeListener(stateListener);
+        });
+        skipStartupLoginSwitch.setOnCheckedChangeListener((button, checked) -> updateActiveProfile());
         profileGroup.setOnCheckedChangeListener((group, checkedId) -> {
             updateTimeZoneOptions();
             updateActiveProfile();
         });
-        timeZoneSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(
-                    AdapterView<?> parent,
-                    View view,
-                    int position,
-                    long id) {
-                if (spinnerProfileId != null
-                        && position >= 0
-                        && position < visibleTimeZones.length) {
-                    selectedTimeZones.put(
-                            spinnerProfileId,
-                            visibleTimeZones[position].timeZoneId);
-                }
-                updateActiveProfile();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                updateActiveProfile();
-            }
-        });
         restoreSavedSelection();
         return root;
+    }
+
+    private Switch settingSwitch(int labelRes) {
+        Switch control = new Switch(this);
+        control.setText(labelRes);
+        control.setTextSize(14);
+        control.setTextColor(TEXT_PRIMARY);
+        control.setGravity(Gravity.CENTER_VERTICAL);
+        control.setMinHeight(dp(48));
+        control.setPadding(dp(12), dp(6), dp(12), dp(6));
+        control.setSwitchPadding(dp(12));
+        control.setThumbTintList(new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
+                new int[]{ACCENT, Color.rgb(142, 145, 151)}));
+        control.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(20, 0, 0, 0)), null, rounded(Color.WHITE, 12)));
+        return control;
+    }
+
+    private Button actionButton(int labelRes, boolean primary) {
+        Button button = new Button(this);
+        button.setText(labelRes);
+        button.setTextSize(12);
+        button.setAllCaps(false);
+        button.setTextColor(primary ? Color.WHITE : TEXT_PRIMARY);
+        button.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        styleActionButton(button, primary ? ACCENT : Color.rgb(232, 234, 239));
+        return button;
+    }
+
+    private void showTimeZonePicker() {
+        if (!timeZoneRow.isEnabled()) {
+            return;
+        }
+        RegionProfile profile = getSelectedBaseProfile();
+        RegionTimeZone[] choices = RegionTimeZone.all(profile.id);
+        String[] labels = new String[choices.length];
+        int selectedIndex = 0;
+        String currentId = getSelectedTimeZone(profile.id).timeZoneId;
+        for (int index = 0; index < choices.length; index++) {
+            labels[index] = choices[index].displayName;
+            if (choices[index].timeZoneId.equals(currentId)) {
+                selectedIndex = index;
+            }
+        }
+        AlertDialog picker = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.time_zone_picker_title, profile.displayName))
+                .setSingleChoiceItems(labels, selectedIndex, (dialog, which) -> {
+                    selectedTimeZones.put(profile.id, choices[which].timeZoneId);
+                    updateTimeZoneOptions();
+                    updateActiveProfile();
+                    dialog.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        picker.getWindow().setWindowAnimations(0);
+        picker.show();
     }
 
     private ImageButton iconButton(int iconResId, int descriptionResId) {
@@ -328,6 +317,28 @@ public final class MainActivity extends Activity {
         button.setMinimumHeight(dp(48));
         button.setPadding(dp(12), dp(12), dp(12), dp(12));
         return button;
+    }
+
+    private GradientDrawable rounded(int color, int radius) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(color);
+        background.setCornerRadius(dp(radius));
+        return background;
+    }
+
+    private void styleActionButton(Button button, int color) {
+        button.setStateListAnimator(null);
+        button.setElevation(0f);
+        button.setTranslationZ(0f);
+        button.setBackgroundTintList(null);
+        button.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(28, 0, 0, 0)),
+                rounded(color, 14), null));
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
+        button.setPadding(dp(6), dp(8), dp(6), dp(8));
     }
 
     private void showAboutMenu(View anchor) {
@@ -425,6 +436,11 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams packagesParams = matchWrap();
         packagesParams.topMargin = dp(8);
         compatibility.addView(packages, packagesParams);
+        TextView verificationScope = text(getString(R.string.about_verification_scope),
+                13, TEXT_SECONDARY);
+        LinearLayout.LayoutParams scopeParams = matchWrap();
+        scopeParams.topMargin = dp(8);
+        compatibility.addView(verificationScope, scopeParams);
         content.addView(compatibility);
 
         content.addView(sectionLabel(R.string.about_project), sectionMargin());
@@ -531,11 +547,17 @@ public final class MainActivity extends Activity {
     }
 
     private void clearRegionAndRestartTikTok() {
+        if (!ModuleStatus.isActive() || restartInProgress) {
+            return;
+        }
         enabledSwitch.setChecked(false);
         applyAndRestartTikTok();
     }
 
     private void applyAndRestartTikTok() {
+        if (!ModuleStatus.isActive() || restartInProgress) {
+            return;
+        }
         RegionProfile selected = getSelectedProfile();
         boolean saved = preferences.edit()
                 .putBoolean(ConfigContract.KEY_ENABLED, enabledSwitch.isChecked())
@@ -597,8 +619,8 @@ public final class MainActivity extends Activity {
     }
 
     private void setRestartButtonsEnabled(boolean enabled) {
-        applyButton.setEnabled(enabled);
-        clearButton.setEnabled(enabled);
+        restartInProgress = !enabled;
+        setOptionsEnabled(enabledSwitch.isChecked());
     }
 
     private List<TikTokTarget> findInstalledTikTokTargets() {
@@ -753,7 +775,7 @@ public final class MainActivity extends Activity {
     }
 
     private RegionProfile getSelectedBaseProfile() {
-        RadioButton selected = findViewById(profileGroup.getCheckedRadioButtonId());
+        RadioButton selected = profileGroup.findViewById(profileGroup.getCheckedRadioButtonId());
         if (selected == null || selected.getTag() == null) {
             return RegionProfile.find("US");
         }
@@ -794,73 +816,58 @@ public final class MainActivity extends Activity {
     }
 
     private void setOptionsEnabled(boolean enabled) {
+        boolean editable = ModuleStatus.isActive() && !restartInProgress;
+        enabledSwitch.setEnabled(editable);
+        skipStartupLoginSwitch.setEnabled(editable);
         for (int index = 0; index < profileGroup.getChildCount(); index++) {
-            profileGroup.getChildAt(index).setEnabled(enabled);
+            View option = profileGroup.getChildAt(index);
+            option.setEnabled(editable && enabled);
+            option.setAlpha(editable && enabled ? 1f : 0.5f);
         }
-        timeZoneSpinner.setEnabled(enabled);
+        timeZoneRow.setEnabled(editable && enabled);
+        timeZoneRow.setAlpha(editable && enabled ? 1f : 0.5f);
+        applyButton.setEnabled(editable);
+        clearButton.setEnabled(editable);
+        applyButton.setAlpha(editable ? 1f : 0.4f);
+        clearButton.setAlpha(editable ? 1f : 0.4f);
+        boolean active = ModuleStatus.isActive();
+        moduleStatusView.setText(active ? R.string.module_active : R.string.module_inactive);
+        moduleStatusView.setTextColor(active
+                ? Color.rgb(18, 128, 76) : Color.rgb(180, 35, 24));
+        moduleStatusView.setBackground(rounded(active
+                ? Color.rgb(235, 248, 240) : Color.rgb(254, 243, 242), 10));
     }
 
     private void updateActiveProfile() {
+        RegionProfile selected = getSelectedProfile();
+        boolean pending = !preferences.contains(ConfigContract.KEY_PROFILE_ID)
+                || enabledSwitch.isChecked()
+                != preferences.getBoolean(ConfigContract.KEY_ENABLED, true)
+                || !selected.id.equals(preferences.getString(ConfigContract.KEY_PROFILE_ID, "US"))
+                || !selected.timeZoneId.equals(RegionTimeZone.resolve(selected.id,
+                        preferences.getString(ConfigContract.KEY_TIME_ZONE_ID, null)).timeZoneId)
+                || skipStartupLoginSwitch.isChecked()
+                != preferences.getBoolean(ConfigContract.KEY_SKIP_STARTUP_LOGIN, true);
+        String state = getString(pending ? R.string.config_pending : R.string.config_saved);
         if (!enabledSwitch.isChecked()) {
-            activeProfileView.setText(R.string.active_follow_system);
+            activeProfileView.setText(getString(R.string.active_follow_system, state));
             return;
         }
         RegionProfile profile = getSelectedProfile();
         RegionTimeZone timeZone = getSelectedTimeZone(profile.id);
-        activeProfileView.setText(getString(
-                R.string.active_profile,
-                profile.displayName,
-                profile.region,
-                timeZone.displayName));
+        activeProfileView.setText(getString(R.string.active_profile, state,
+                profile.displayName, profile.region, timeZone.displayName));
     }
 
     private void updateTimeZoneOptions() {
-        if (timeZoneSpinner == null || profileGroup == null) {
-            return;
-        }
-        if (spinnerProfileId != null && visibleTimeZones.length > 0) {
-            int selectedPosition = timeZoneSpinner.getSelectedItemPosition();
-            if (selectedPosition >= 0 && selectedPosition < visibleTimeZones.length) {
-                selectedTimeZones.put(
-                        spinnerProfileId,
-                        visibleTimeZones[selectedPosition].timeZoneId);
-            }
-        }
-
         RegionProfile profile = getSelectedBaseProfile();
-        spinnerProfileId = profile.id;
-        visibleTimeZones = RegionTimeZone.all(profile.id);
-        List<String> labels = new ArrayList<>();
-        for (RegionTimeZone timeZone : visibleTimeZones) {
-            labels.add(timeZone.displayName);
-        }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        timeZoneSpinner.setAdapter(adapter);
-
-        String preferredTimeZoneId = selectedTimeZones.get(profile.id);
-        RegionTimeZone selectedTimeZone = RegionTimeZone.resolve(
-                profile.id,
-                preferredTimeZoneId);
-        for (int index = 0; index < visibleTimeZones.length; index++) {
-            if (visibleTimeZones[index].timeZoneId.equals(selectedTimeZone.timeZoneId)) {
-                timeZoneSpinner.setSelection(index, false);
-                selectedTimeZones.put(profile.id, selectedTimeZone.timeZoneId);
-                break;
-            }
-        }
+        RegionTimeZone selected = getSelectedTimeZone(profile.id);
+        timeZoneValue.setText(getString(R.string.time_zone_value, selected.displayName));
+        timeZoneRow.setContentDescription(getString(R.string.time_zone_city)
+                + "，" + selected.displayName);
     }
 
     private RegionTimeZone getSelectedTimeZone(String profileId) {
-        if (profileId.equals(spinnerProfileId) && visibleTimeZones.length > 0) {
-            int position = timeZoneSpinner.getSelectedItemPosition();
-            if (position >= 0 && position < visibleTimeZones.length) {
-                return visibleTimeZones[position];
-            }
-        }
         return RegionTimeZone.resolve(profileId, selectedTimeZones.get(profileId));
     }
 

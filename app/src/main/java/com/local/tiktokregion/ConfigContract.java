@@ -2,7 +2,7 @@ package com.local.tiktokregion;
 
 public final class ConfigContract {
     public static final String MODULE_PACKAGE = "com.local.tiktokregion";
-    public static final String VERIFIED_LATEST_TIKTOK_VERSION = "46.6.3";
+    public static final String VERIFIED_LATEST_TIKTOK_VERSION = "47.7.3";
     public static final String SOURCE_URL =
             "https://github.com/kjqg-cn/tiktok-region-hook";
     public static final String ISSUES_URL =

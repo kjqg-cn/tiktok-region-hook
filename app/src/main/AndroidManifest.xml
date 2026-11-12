@@ -27,7 +27,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Overrides TikTok region, carrier, SIM, and store-region signals." />
+            android:value="覆盖 TikTok 地区、运营商、SIM 和商店地区信号。" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />

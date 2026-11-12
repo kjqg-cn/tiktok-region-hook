@@ -1,37 +1,54 @@
-# TikTok Region Hook
+# TikTok地区助手
 
 简体中文 | [English](README_EN.md)
 
-一个仅作用于 TikTok 进程的 LSPosed 模块，用于统一 TikTok 读取到的地区、SIM、运营商和商店区域信息。
+一个仅作用于 TikTok 进程的 LSPosed 模块，用于统一 TikTok 读取到的地区、SIM、运营商、时区和商店地区信号。
 
-当前版本：`1.5.0`
+当前版本：`1.6.0`
+
+## 1.6.0 更新
+
+- 适配 Google Play TikTok 47.7.3 的商店地区接口；保留旧版 Hook 分支，并跳过返回类型不匹配的内部方法。
+- 重新设计紧凑设置页，更新中文名称和环球定位图标。设置项整行可点击，设置与地区列表统一滚动，底部两个操作按钮固定并排。
+- 底部按钮随文字换行自适应高度，最小触摸高度 48dp；已检查 320dp 宽度下 100%、130%、200% 字号的完整显示和列表滚动。
+- 城市/时区使用独立选择框，避免展开后挤占地区列表。
+- 新增模块加载提示和只读模式；未检测到加载时禁止修改和应用配置。手动停用模块后需强制停止并重新打开 TikTok，才能停止原进程中的地区覆盖。
+- 修复桌面启动误触地区、选择城市后首次操作无响应，以及从关于页返回时国家、城市与配置摘要不一致的问题。
+- 区分“待应用”和“已保存”；首次安装的默认预设不再误标为已保存。关于页同步显示最新已测 TikTok 版本及验证范围。
 
 ## 界面预览
 
-| 地区覆盖已启用 | 跟随系统（地区覆盖已关闭） |
+以下截图展示模块加载状态的区别，已裁除系统状态栏和导航栏，并将配置摘要匿名化为公开预设示例。
+
+| 模块已加载 | 模块未加载（只读模式） |
 | :---: | :---: |
-| <img src="docs/images/region-override-enabled.png" alt="地区覆盖已启用" width="320"> | <img src="docs/images/region-override-disabled.png" alt="跟随系统，地区覆盖已关闭" width="320"> |
-| 选择预设地区和城市后，TikTok 使用模块提供的地区、SIM、运营商和时区信息。 | 不覆盖地区信息，TikTok 使用设备真实的 SIM 和系统信息。 |
+| <img src="docs/images/module-active.png" alt="模块已加载，可编辑配置" width="320"> | <img src="docs/images/module-inactive.png" alt="模块未加载，配置与操作按钮只读" width="320"> |
+| 可编辑地区和城市，点击“应用并重启TikTok”后应用配置。模块加载状态不等同于地区覆盖开关状态。 | 配置不可修改或应用。若手动停用了模块，需强制停止并重新打开 TikTok，使原有地区覆盖停止。 |
 
 ## 功能
 
 - 支持美国、英国、日本、韩国、新加坡、德国、法国、加拿大和澳大利亚预设。
 - 可在国家预设内选择常用城市/时区，例如美国的洛杉矶、纽约、芝加哥和丹佛。
-- 同步覆盖 country ISO、MCC/MNC、运营商、SIM、系统地区和 store region 等地区信号。
+- 同步覆盖 country ISO、MCC/MNC、运营商、SIM、系统地区和商店地区等地区信号。
 - 支持 `com.zhiliaoapp.musically` 和 `com.ss.android.ugc.trill` 两种 TikTok 包名。
 - 在 LSPosed 作用域页面将已安装的 TikTok 标记为“推荐应用”并置顶。
 - 可选择跳过 TikTok 冷启动时可关闭的登录引导。
 - “应用并重启 TikTok”会保存地区、强制停止 TikTok 并重新打开。
 - “清除地区并重启 TikTok”会停用全部地区覆盖，恢复使用真实 SIM 和系统地区。
-- 配置会缓存到 TikTok 进程可读取的位置，TikTok Region Hook 无需常驻后台。
+- 配置会缓存到 TikTok 进程可读取的位置，TikTok地区助手无需常驻后台。
 - 设置页右上角提供关于入口，可查看模块版本、已验证的最新 TikTok 版本、源代码、反馈和许可证。
 
 ## 兼容性
 
+最新已测版本为 **Google Play 47.7.3**。开发验证覆盖信息流、评论、用户主页与作品列表、US/JP 配置保存及冷启动、模块非驻留和清除地区；模块停用、US/JP 覆盖、模块启用但关闭覆盖四组分别连续上滑 7 条，均观察到后续加载和画面变化。
+
+手机号前缀、国外 SIM 恢复及完整交互矩阵未全部验证，连续播放可用不证明推荐内容的地域归属；最终构建未重跑完整播放矩阵。
+
 | 项目 | 状态 |
 | --- | --- |
-| 已验证的最新 TikTok 版本 | Google Play 46.6.3 |
-| 其他已验证 TikTok 版本 | Google Play 46.1.3、46.5.3 |
+| 最新已测 TikTok 版本 | Google Play 47.7.3（验证范围见上） |
+| 当前模块对旧版的回归状态 | 保留旧 Hook 分支，尚未逐版本重新回归 |
+| 历史已验证 TikTok 版本 | Google Play 46.1.3、46.5.3、46.6.3（使用当时的模块版本） |
 | 已验证包名 | `com.zhiliaoapp.musically`、`com.ss.android.ugc.trill` |
 | 已验证 Android 版本 | Android 12、Android 16 |
 | 最低 Android 版本 | Android 8.1（API 27） |
@@ -42,9 +59,9 @@
 ## 安装
 
 1. 确认设备已具备可用的 Root 和 LSPosed/Vector 环境。
-2. 从 [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases) 下载并安装 TikTok Region Hook APK。
+2. 从 [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases) 下载并安装 TikTok地区助手 APK。
 3. 在 LSPosed 中启用模块，确认已安装的 TikTok 显示为“推荐应用”且已勾选。
-4. 打开 TikTok Region Hook，选择地区后点击“应用并重启 TikTok”。
+4. 打开 TikTok地区助手，选择地区后点击“应用并重启TikTok”。
 5. KernelSU/Magisk 首次询问 Root 权限时选择长期允许，否则应用无法强制停止 TikTok。
 
 更新模块后，确认 TikTok 仍在作用域内并已启用，然后强制停止并重新打开 TikTok 即可加载新 Hook；通常不需要重新优化模块。“重新优化”属于 ART dex/profile 优化，仅在目标进程重启后仍疑似未加载新模块时作为排查手段。覆盖安装通常会保留 Root 授权；卸载重装会清除授权，需要重新授予。
@@ -76,8 +93,7 @@
 - 本模块不能替代可用的国际网络环境；TikTok 服务端仍会结合 IP、账号和其他风控信号判断可用性。
 - TikTok 更新可能改变内部混淆类，使部分版本专用 Hook 失效。
 - 信息流能够加载不代表登录、用户主页和所有地区接口都一定兼容，应在更新 TikTok 后完整回归。
-- Google Play 46.5.3 此前在测试账号和网络环境下曾观察到点赞、关注操作短暂成功后状态消失；后续点赞曾恢复正常，结合现象更倾向于账号或服务端风控，暂无证据归因于模块。
-- Google Play 46.6.3 已验证信息流、评论、用户主页、点赞、商店地区及其他已测试交互正常。当前测试账号的关注状态未持久化，倾向于账号或服务端风控，不能据此归因于模块。
+- 点赞、关注等交互受平台多种条件影响；地区覆盖通过不代表交互持久性已完整验证，不能据此判断模块是相关问题的原因。
 - 该方案依赖 Root 和 LSPosed，不适用于未 Root 设备。
 
 ## 从源码构建

@@ -20,6 +20,7 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import java.time.ZoneId;
+import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TimeZone;
@@ -41,6 +42,14 @@ public final class RegionHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        if (ConfigContract.MODULE_PACKAGE.equals(loadPackageParam.packageName)) {
+            XposedHelpers.findAndHookMethod(
+                    ModuleStatus.class.getName(),
+                    loadPackageParam.classLoader,
+                    "isActive",
+                    XC_MethodReplacement.returnConstant(true));
+            return;
+        }
         if (!ConfigContract.isTargetPackage(loadPackageParam.packageName)) {
             return;
         }
@@ -404,6 +413,21 @@ public final class RegionHook implements IXposedHookLoadPackage {
             RegionProfile profile) {
         int count = 0;
         try {
+            Class<?> source = XposedHelpers.findClass(
+                    "com.bytedance.i18n.region.StoreRegionSource", classLoader);
+            Method getter = source.getDeclaredMethod("LIZ");
+            // 47.7.3: verified region/source model; never infer a model from an obfuscated name.
+            if ("X.05Tc".equals(getter.getReturnType().getName())) {
+                Object info = XposedHelpers.newInstance(
+                        getter.getReturnType(), profile.region, "local");
+                XposedBridge.hookMethod(getter, XC_MethodReplacement.returnConstant(info));
+                log("已安装 47.7.3 商店地区来源 Hook");
+                return 1;
+            }
+        } catch (Throwable throwable) {
+            logFailure("47.7.3 商店地区来源", throwable);
+        }
+        try {
             Class<?> storeRegionInfoClass = XposedHelpers.findClass("X.0W7B", classLoader);
             Object storeRegionInfo = XposedHelpers.newInstance(
                     storeRegionInfoClass,
@@ -416,7 +440,7 @@ public final class RegionHook implements IXposedHookLoadPackage {
                     storeRegionInfo);
             count += hookAll(classLoader, "X.0W6U", "LIZ", storeRegionInfo);
         } catch (Throwable throwable) {
-            logFailure("store region source", throwable);
+            logFailure("商店地区来源", throwable);
             return count;
         }
 
@@ -563,10 +587,24 @@ public final class RegionHook implements IXposedHookLoadPackage {
 
     private static int hookAll(Class<?> targetClass, String methodName, Object result) {
         try {
-            return XposedBridge.hookAllMethods(
-                    targetClass,
-                    methodName,
-                    XC_MethodReplacement.returnConstant(result)).size();
+            int count = 0;
+            for (Method method : targetClass.getDeclaredMethods()) {
+                if (!methodName.equals(method.getName())) {
+                    continue;
+                }
+                Class<?> returnType = method.getReturnType();
+                if (!returnType.isInstance(result)
+                        && !(returnType == int.class && result instanceof Integer)) {
+                    continue;
+                }
+                XposedBridge.hookMethod(method, XC_MethodReplacement.returnConstant(result));
+                count++;
+            }
+            if (count == 0) {
+                log("skipped " + targetClass.getName() + "." + methodName
+                        + ": no compatible return type");
+            }
+            return count;
         } catch (Throwable throwable) {
             logFailure(targetClass.getName() + "." + methodName, throwable);
             return 0;

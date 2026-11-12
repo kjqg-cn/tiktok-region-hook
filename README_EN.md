@@ -2,16 +2,28 @@
 
 [简体中文](README.md) | English
 
-An LSPosed module that provides a consistent set of region, SIM, carrier, and store-region signals inside supported TikTok processes.
+An LSPosed module that provides consistent region, SIM, carrier, time-zone, and store-region signals inside supported TikTok processes.
 
-Current version: `1.5.0`
+Current version: `1.6.0` · App name: TikTok地区助手
+
+## What's new in 1.6.0
+
+- Adapts the regional commerce interface in Google Play TikTok 47.7.3, retains legacy hook branches, and skips internal methods with incompatible return types.
+- Introduces a compact settings screen, Chinese app name, and globe icon. Settings use full-row touch targets; settings and profiles share a scroll area, with two fixed action buttons.
+- Action buttons grow to fit wrapped text while keeping a minimum 48dp touch height. Text visibility and scrolling were checked at 320dp width with 100%, 130%, and 200% font scales.
+- Opens cities/time zones in a separate picker without expanding the page.
+- Adds module loading indicators and read-only mode. Settings cannot be edited or applied when loading is not detected. After manually disabling the module, force-stop and reopen TikTok to stop hooks in the existing process.
+- Fixes accidental region selection on launch, an unresponsive first gesture after city selection, and inconsistent region/city summaries after returning from About.
+- Distinguishes pending and saved settings, including default presets on a fresh installation. About shows the latest tested TikTok version and verification scope.
 
 ## Interface Preview
 
-| Region override enabled | Follow system (override disabled) |
+These screenshots compare module loading states. System status and navigation bars are cropped out, and configuration summaries are anonymized as public preset examples.
+
+| Module loaded | Module not loaded (read-only mode) |
 | :---: | :---: |
-| <img src="docs/images/region-override-enabled.png" alt="Region override enabled" width="320"> | <img src="docs/images/region-override-disabled.png" alt="Follow system with region override disabled" width="320"> |
-| TikTok uses the region, SIM, carrier, and time-zone values supplied by the selected profile and city. | No region values are overridden; TikTok uses the device's real SIM and system signals. |
+| <img src="docs/images/module-active.png" alt="Module loaded with editable settings" width="320"> | <img src="docs/images/module-inactive.png" alt="Module not loaded with read-only settings and disabled actions" width="320"> |
+| Edit a region and city, then apply and restart TikTok. Module loading and the region override switch are separate states. | Settings cannot be edited or applied. After manually disabling the module, force-stop and reopen TikTok to stop hooks in the existing process. |
 
 ## Features
 
@@ -28,10 +40,15 @@ Current version: `1.5.0`
 
 ## Compatibility
 
+The latest tested version is **Google Play 47.7.3**. Development verification covered feed, comments, profiles and post grids, US/JP configuration saves and cold starts, operation without the module process, and disabling overrides. Seven consecutive swipes were checked in each of four states: module disabled, US override, JP override, and module enabled with overrides disabled. Subsequent loading and frame changes were observed.
+
+Phone prefixes, foreign-SIM restoration, and the full interaction matrix are not fully verified. Playback does not establish the geographic origin of recommendations. The full playback matrix was not rerun on the final build.
+
 | Item | Status |
 | --- | --- |
-| Latest verified TikTok version | Google Play 46.6.3 |
-| Other tested TikTok versions | Google Play 46.1.3, 46.5.3 |
+| Latest tested TikTok version | Google Play 47.7.3 (scope above) |
+| Current module regression status on older versions | Legacy hook branches retained; not retested version by version |
+| Historically tested TikTok versions | Google Play 46.1.3, 46.5.3, 46.6.3 (with the module versions available at the time) |
 | Tested package names | `com.zhiliaoapp.musically`, `com.ss.android.ugc.trill` |
 | Tested Android versions | Android 12, Android 16 |
 | Minimum Android version | Android 8.1 (API 27) |
@@ -42,9 +59,9 @@ The module hooks stable Android telephony APIs and version-specific TikTok regio
 ## Installation
 
 1. Prepare a working Root and LSPosed/Vector environment.
-2. Download and install the TikTok Region Hook APK from [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases).
+2. Download and install the TikTok地区助手 APK from [Releases](https://github.com/kjqg-cn/tiktok-region-hook/releases).
 3. Enable the module in LSPosed and confirm that the installed TikTok package is checked and marked as recommended.
-4. Open TikTok Region Hook, select a region, and tap "Apply and restart TikTok."
+4. Open TikTok地区助手, select a region, and tap "Apply and restart TikTok."
 5. When KernelSU or Magisk requests Root access for the first time, grant persistent access so the module can force-stop TikTok.
 
 After updating the module, confirm that TikTok remains enabled in the module scope, then force-stop and reopen TikTok to load the new hooks. Re-optimizing is normally unnecessary; it is an ART dex/profile optimization step that is useful only when a restarted target process still appears to be using stale module code. An in-place update normally preserves Root authorization; uninstalling and reinstalling does not.
@@ -76,8 +93,7 @@ This option only closes a dismissible login prompt shortly after a new TikTok pr
 - The module does not replace a working international network route. TikTok may still evaluate IP address, account state, and other server-side risk signals.
 - TikTok updates may rename internal obfuscated classes and break version-specific hooks.
 - A working feed does not prove that login, user profiles, and every regional endpoint are compatible; perform a complete regression test after updating TikTok.
-- On Google Play 46.5.3, the test account and network previously showed likes and follows briefly succeeding before their state disappeared. Likes later recovered; taken together, the behavior is more consistent with account or server-side risk controls, and there is no evidence to attribute it to the module.
-- On Google Play 46.6.3, the feed, comments, user profiles, likes, store-region behavior, and other tested interactions have been verified working. Follow state did not persist for the current test account, which is more consistent with account or server-side risk controls and cannot be attributed to the module.
+- Likes, follows, and other interactions depend on multiple platform conditions. Successful region overrides do not prove interaction persistence or establish the module as the cause of related issues.
 - Root and LSPosed are required. This solution does not support non-rooted devices.
 
 ## Build From Source

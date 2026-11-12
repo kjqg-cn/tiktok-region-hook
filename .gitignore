@@ -21,6 +21,18 @@ dist/
 # Local design prototypes
 docs/prototypes/
 
+# Private research and device evidence
+device-pics/
+device-apks/
+analysis/
+.analysis/
+private/
+*.log
+*.hprof
+*.pcap
+*.pcapng
+*.har
+
 # OS files
 .DS_Store
 Thumbs.db

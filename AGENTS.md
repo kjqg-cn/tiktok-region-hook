@@ -6,21 +6,34 @@
 
 不要提交 TikTok APK、反编译产物、设备数据、发布签名库、签名密码、`local.properties`、`keystore.properties`、构建目录或生成的 APK。
 
+## 隐私边界
+
+- 可提交文件只保留通用功能、版本兼容性和匿名验证结论。禁止写入设备序列号、型号、主机用户名或绝对路径、账号信息及状态、真实 SIM 信息、IP、网络环境、私人使用配置和带系统状态栏或通知的真机截图。
+- 原始日志、截图、设备验证矩阵和本机环境记录仅放在仓库外的本地研究目录；不得复制进 README、维护规则、源码注释或提交说明。
+- 公开界面图片默认使用生成的示意图；用户明确要求真机截图时，只使用裁除系统栏、通知和私人内容并移除元数据的副本。提交前检查 Git 跟踪文件和未忽略的新文件，并检查图片内容及元数据。私密文件仅加入忽略规则不能清除已经被跟踪的内容，必须单独处理。
+
 ## 当前基线
 
-- 模块：`com.local.tiktokregion` 1.5.0（`versionCode 42`）
-- 已验证的最新 TikTok 版本：Google Play 46.6.3
-- 其他已验证 TikTok 版本：Google Play 46.1.3、46.5.3
-- 46.5.3 此前测试账号和网络环境曾出现点赞、关注状态短暂成功后消失；后续点赞曾恢复正常，结合现象更倾向于账号或服务端风控，暂无证据归因于模块。
-- 46.6.3 已验证信息流、评论、用户主页、点赞和 store region 等信息与交互正常；当前测试账号的关注状态未持久化，倾向于账号或服务端风控，不能归因于模块。
-- 当前发布包：`dist/TikTokRegionHook-1.5.0.apk`
-- 当前发布包 SHA-256：`B8F4F9F304C7B82AC88C25A38FBFEDFE0D415F71E0D052F51A7402E4E4EFE06C`
-- 目标包：`com.zhiliaoapp.musically`、`com.ss.android.ugc.trill`
-- 已验证 Android：Android 12、Android 16
-- 发布证书 SHA-256：`b6522c8682fa15850bfc97504a7d0d6a629b44b63105456047f331fba8b539df`
-- 编译：JDK 21、Android API 34、Gradle Wrapper 8.9
+- 模块：`com.local.tiktokregion` 1.6.0（`versionCode 52`），显示名“TikTok地区助手”。
+- 最新已测 TikTok：Google Play 47.7.3。已核对地区特征接口和商店地区模型，开发验证覆盖信息流、评论、用户主页、US/JP 切换、非驻留和清除地区配置。
+- 连续播放：模块停用、US/JP 覆盖、模块启用但关闭覆盖四组各冷启动后上滑 7 条，均加载并观察到画面变化；该结果不证明推荐内容地域归属，最终构建未重跑完整矩阵。
+- 设置回归：整行操作、城市选择后快速切地区、关于页返回保留国家/城市、非美国保存配置冷启动，以及小尺寸和大字号布局已检查。底部按钮在 320dp 宽度下 100%、130%、200% 字号均完整显示，末项可滚动到达；200% 时按钮高约 79.7dp。
+- 未验证项：手机号前缀、国外 SIM 恢复及完整交互矩阵；首次安装摘要分支仅静态检查，未清数据重装。
+- 历史已验证 TikTok：46.1.3、46.5.3、46.6.3，来自当时模块；当前代码保留旧 Hook 分支，未逐版本重新回归。
+- 目标包：`com.zhiliaoapp.musically`、`com.ss.android.ugc.trill`。
+- 已验证 Android：Android 12、Android 16。
+- 发布构建：`dist/release-1.6.0-build52/TikTokRegionHook-1.6.0.apk`。
+- APK SHA-256：`8F51965CB7FDAD83E8154357FDF454BF64422C8E44DE37B72B2C9B74A5114283`。
+- 发布证书 SHA-256：`b6522c8682fa15850bfc97504a7d0d6a629b44b63105456047f331fba8b539df`。
+- 编译：JDK 21、Android API 34、Gradle Wrapper 8.9。
 
-每次发版后同步更新本文件和中英文 README 中的模块版本、已验证的最新 TikTok 版本及兼容性。
+## 1.6.0 维护要点
+
+- 本次交付合并地区接口适配、加载状态与只读模式、紧凑整行设置、独立城市选择框、启动误触与页面恢复修复；详细功能见中英文 README。
+- 本地中间构建属于未发布测试过程，不在公开文档中逐版列出。公开版本名按实际发布计划维护；`versionCode` 必须高于已安装构建，以保证覆盖更新。
+- 推荐作用域和模块包名保持原契约；模块自身探针不代表 TikTok 作用域或全部 Hook 已生效。
+- README 仅引用 `docs/images/module-active.png`、`docs/images/module-inactive.png`。两张脱敏图片必须随文档提交，原图和处理脚本保留在仓库外。
+- 发版同步核对 Gradle 版本、关于页的最新已测 TikTok 版本和范围、中英文 README、维护基线及 APK 摘要。
 
 ## 必须保持的行为
 
@@ -31,6 +44,9 @@
 - TikTok 保留目标应用私有配置缓存，模块应用不能依赖常驻后台。
 - Root 只能用于 `am force-stop` 和 `am start -n`，不能修改全局 Android 设置。
 - 推荐作用域同时维护 Manifest `xposedscope`、`res/values/arrays.xml` 和 `META-INF/xposed/scope.list`。
+- 模块设置项必须整行可操作，触摸目标至少 48dp；小屏和较大字号下设置、地区列表可统一滚动，操作按钮固定可见。
+- 底部按钮高度使用 WRAP_CONTENT、最小高度 48dp，保留上下内边距，不能用固定 48dp 限制换行文字。回归须包含 320dp 宽度、200% 字号，检查文字布局高度、完整可见性和末项滚动。
+- 城市/时区用独立选择框，不在固定区域内展开城市列表；未加载模块时禁止打开选择框和修改配置。
 
 ## 设置页关于入口
 
@@ -60,12 +76,14 @@
 - `X.0VV8`、`X.11ga`：SIM/网络/应用地区。
 - `X.0VV4`：Locale 地区。
 - `X.0V1x`、`X.0V1y`：当前 SIM 信息。
-- `X.0W7B`、`X.0W6U`、`X.0Wdy`、`X.0We0`、`X.0XBC`、`StoreRegionSource`：store region。
+- `X.0W7B`、`X.0W6U`、`X.0Wdy`、`X.0We0`、`X.0XBC`、`StoreRegionSource`：商店地区。
 - `I18nSignUpActivityWithNoAnimation`：启动登录引导。
 
 混淆类名不是稳定接口。适配新版时必须从新版完整 APK 集合重新确认类、方法签名、返回类型和构造参数；找不到时保留框架 Hook、记录跳过项，不要凭相似名称替换。
 
 重点搜索：`region`、`carrier_region`、`mcc_mnc`、`sys_region`、`app_region`、`network_sim_region`、`curr_sim_country_code`、`current_region`、`store_region`、`op_region`、`sim_region`。
+
+47.7.3：旧混淆类已改为无关类；`FeatureProducer.getStringFeature` 及 `$default` 的字段参数位置和 String 返回类型仍匹配。`StoreRegionSource.LIZ()` 返回 `X.05Tc`，构造函数为 `(String region, String source)`，经 `X.05TT` 发布到 `RegionManager`。新分支仅在返回类型严格匹配时安装，其他版本保留旧分支。通用常量 Hook 必须检查返回类型，避免将字符串返回给新版同名布尔方法。
 
 ## 新 TikTok 版本适配
 
@@ -95,6 +113,8 @@
 
 ## 真机回归
 
+- 模块开启、模块关闭、地区覆盖开启和关闭均不能只看首条缓存视频：冷启动后连续上滑至少 5–10 条，逐条确认后续内容加载及播放；记录广告/图集/加载异常，不将能看到首帧等同于视频已播放。
+- 界面加载状态由 ModuleStatus 自身 Hook 探针判断；未加载时禁止编辑和保存，关于页仍可访问。管理器启停后重开模块应用刷新，当前进程状态不等于管理器实时总开关或 TikTok 作用域状态。
 - 覆盖安装模块；全新安装会丢失 KernelSU/Magisk 授权，提示用户给模块“始终允许”。
 - 在 LSPosed/Vector 中确认已安装 TikTok 被置顶、标记“推荐应用”且勾选。不要清空用户作用域来测试首次默认值。
 - 更新模块 APK 后，确认作用域仍启用，然后强停并重新启动 TikTok 即可加载新 Hook；不把“重新优化”作为常规必需步骤。只有在目标进程重启后仍疑似未加载新模块、或需要排除 ART 优化缓存因素时，才将重新优化作为额外排查手段。
